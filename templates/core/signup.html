@@ -4,10 +4,11 @@
 <form method="post" id="signup-form">
     {% csrf_token %}
     {{ form.non_field_errors }}
+
     <div class="mb-3">
         <label class="form-label">Username</label>
         {{ form.username.errors }}
-        <input type="text" name="username" class="form-control" required>
+        <input type="text" name="username" class="form-control" required value="{{ form.username.value|default_if_none:'' }}">
     </div>
     <div class="mb-3">
         <label class="form-label">Password</label>
@@ -16,19 +17,19 @@
     </div>
     <div class="mb-3">
         <label class="form-label">First Name</label>
-        <input type="text" name="first_name" class="form-control">
+        <input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default_if_none:'' }}">
     </div>
     <div class="mb-3">
         <label class="form-label">Last Name</label>
-        <input type="text" name="last_name" class="form-control">
+        <input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default_if_none:'' }}">
     </div>
     <div class="mb-3">
         <label class="form-label">Role</label>
         <select name="role" id="id_role" class="form-select" required>
             <option value="">-- Select --</option>
-            <option value="Student">Student</option>
-            <option value="Teacher">Teacher</option>
-            <option value="Admin">Admin</option>
+            <option value="Student" {% if form.role.value == "Student" %}selected{% endif %}>Student</option>
+            <option value="Teacher" {% if form.role.value == "Teacher" %}selected{% endif %}>Teacher</option>
+            <option value="Admin" {% if form.role.value == "Admin" %}selected{% endif %}>Admin</option>
         </select>
     </div>
     <div class="mb-3" id="courses-group" style="display:none;">
@@ -39,19 +40,23 @@
     <button type="submit" class="btn btn-primary">Sign Up</button>
 </form>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    const roleSelect = document.getElementById('id_role');
-    const coursesGroup = document.getElementById('courses-group');
+    (function() {
+        var roleSelect = document.getElementById('id_role');
+        var coursesGroup = document.getElementById('courses-group');
 
-    function toggleCourses() {
-        if (roleSelect.value === 'Student' || roleSelect.value === 'Teacher') {
-            coursesGroup.style.display = 'block';
-        } else {
-            coursesGroup.style.display = 'none';
+        function toggleCourses() {
+            if (roleSelect.value === 'Student' || roleSelect.value === 'Teacher') {
+                coursesGroup.style.display = 'block';
+            } else {
+                coursesGroup.style.display = 'none';
+            }
         }
-    }
-    roleSelect.addEventListener('change', toggleCourses);
-    toggleCourses();  // initial state
+
+        roleSelect.addEventListener('change', toggleCourses);
+        toggleCourses();  // initial state
+    })();
 </script>
 {% endblock %}

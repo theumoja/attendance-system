@@ -125,7 +125,7 @@ USE_TZ = True
 
 
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/'    # we'll redirect based on role
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 STATIC_URL = '/static/'

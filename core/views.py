@@ -25,6 +25,7 @@ from .models import Course, CourseUnit, Enrollment, TeacherAssignment, Attendanc
 from .mixins import GroupRequiredMixin
 from .forms import SignupForm
 
+
 # ---------- Signup and Approval Flow ----------
 
 def signup_view(request):
@@ -39,9 +40,7 @@ def signup_view(request):
             )
             profile = user.profile
             profile.role = form.cleaned_data['role']
-            # is_approved defaults to False, admin applications are handled separately
             profile.save()
-            # Save applied courses (only for Student/Teacher)
             if profile.role in ['Student', 'Teacher']:
                 profile.courses.set(form.cleaned_data['courses'])
             messages.success(request, 'Account created! Please wait for approval.')
