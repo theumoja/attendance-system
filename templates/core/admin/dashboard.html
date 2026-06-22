@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Admin Dashboard</h2>
+<div class="row mt-4">
+    <div class="col-md-4 mb-3">
+        <a href="{% url 'core:admin_teacher_approvals' %}" class="btn btn-outline-primary w-100 p-4">Approve Teachers</a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="{% url 'core:admin_courses' %}" class="btn btn-outline-primary w-100 p-4">Manage Courses</a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="{% url 'core:admin_enrollments' %}" class="btn btn-outline-primary w-100 p-4">Enrollments</a>
+    </div>
+    <div class="col-md-4 mb-3">
+        <a href="{% url 'core:admin_reports' %}" class="btn btn-outline-primary w-100 p-4">Attendance Reports</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>My Courses</h2>
+<div class="list-group">
+    {% for enrollment in enrollments %}
+        <a href="{% url 'core:student_course_units' enrollment.course.id %}" class="list-group-item list-group-item-action">
+            {{ enrollment.course.code }} - {{ enrollment.course.name }}
+        </a>
+    {% empty %}
+        <p>You are not enrolled in any courses.</p>
+    {% endfor %}
+</div>
+{% endblock %}

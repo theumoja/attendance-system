@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Courses</h2>
+<a href="{% url 'core:admin_course_create' %}" class="btn btn-success mb-3">Add New Course</a>
+<table class="table table-bordered">
+    <thead><tr><th>Code</th><th>Name</th><th>Actions</th></tr></thead>
+    <tbody>
+        {% for course in courses %}
+            <tr>
+                <td>{{ course.code }}</td>
+                <td>{{ course.name }}</td>
+                <td>
+                    <a href="{% url 'core:admin_course_update' course.pk %}" class="btn btn-sm btn-warning">Edit</a>
+                    <a href="{% url 'core:admin_course_delete' course.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

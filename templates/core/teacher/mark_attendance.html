@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Mark Attendance: {{ unit.code }} - {{ unit.name }}</h2>
+<p class="text-muted">{{ course.name }} ({{ course.code }})</p>
+<form id="attendance-form" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="lat" id="lat">
+    <input type="hidden" name="lon" id="lon">
+    <table class="table table-striped">
+        <thead><tr><th>Student</th><th>Present</th></tr></thead>
+        <tbody>
+            {% for student in students %}
+                <tr>
+                    <td>{{ student.get_full_name|default:student.username }}</td>
+                    <td>
+                        <input type="checkbox" name="present_{{ student.id }}" {% if student.id in existing %}checked{% endif %}>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit" class="btn btn-success">Submit Attendance (GPS will be captured)</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('attendance-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            document.getElementById('lat').value = position.coords.latitude;
+            document.getElementById('lon').value = position.coords.longitude;
+            e.target.submit();
+        }, function(error) {
+            alert('Geolocation failed. Please enable GPS and try again.');
+        });
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }
+});
+</script>
+{% endblock %}

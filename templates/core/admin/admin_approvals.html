@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Approve Admin Applications (Superuser only)</h2>
+<table class="table table-striped">
+    <thead><tr><th>Username</th><th>Name</th><th>Actions</th></tr></thead>
+    <tbody>
+        {% for profile in profiles %}
+            <tr>
+                <td>{{ profile.user.username }}</td>
+                <td>{{ profile.user.get_full_name }}</td>
+                <td>
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="profile_id" value="{{ profile.pk }}">
+                        <button name="action" value="approve" class="btn btn-sm btn-success">Approve</button>
+                        <button name="action" value="reject" class="btn btn-sm btn-danger">Reject</button>
+                    </form>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="3">No pending admin applications.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

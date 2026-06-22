@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Attendance Reports</h2>
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+        <select name="course" class="form-select">
+            <option value="">All Courses</option>
+            {% for c in courses %}<option value="{{ c.id }}" {% if filters.course == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="unit" class="form-select">
+            <option value="">All Units</option>
+            {% for u in units %}<option value="{{ u.id }}" {% if filters.unit == u.id|stringformat:"s" %}selected{% endif %}>{{ u.code }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+    </div>
+    <div class="col-md-2">
+        <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Filter</button>
+    </div>
+</form>
+<table class="table table-striped">
+    <thead><tr><th>Student</th><th>Total Sessions</th><th>Present</th><th>%</th></tr></thead>
+    <tbody>
+        {% for row in report %}
+            <tr>
+                <td>{{ row.student }}</td>
+                <td>{{ row.total }}</td>
+                <td>{{ row.present }}</td>
+                <td>{{ row.percent }}%</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>Attendance for {{ unit.code }} - {{ unit.name }}</h2>
+<table class="table table-bordered">
+    <thead>
+        <tr><th>Date</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+        {% for rec in records %}
+            <tr>
+                <td>{{ rec.date }}</td>
+                <td>{% if rec.is_present %}<span class="badge bg-success">Present</span>{% else %}<span class="badge bg-danger">Absent</span>{% endif %}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="2">No attendance records yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

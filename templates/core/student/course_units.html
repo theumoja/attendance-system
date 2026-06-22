@@ -1,0 +1,11 @@
+{% extends "core/base.html" %}
+{% block content %}
+<h2>{{ course.name }} Units</h2>
+<div class="list-group">
+    {% for unit in units %}
+        <a href="{% url 'core:student_attendance' unit.id %}" class="list-group-item list-group-item-action">
+            {{ unit.code }} - {{ unit.name }}
+        </a>
+    {% endfor %}
+</div>
+{% endblock %}
