@@ -53,7 +53,7 @@ def home(request):
             return redirect('core:pending_approval')
 
     if user.is_superuser:
-        return redirect('/admin/')
+        return redirect('/admin/dashboard')
 
     if user.groups.filter(name='Student').exists():
         return redirect('core:student_dashboard')
