@@ -34,4 +34,5 @@ urlpatterns = [
     path('student/dashboard/', views.StudentDashboardView.as_view(), name='student_dashboard'),
     path('student/courses/<int:course_id>/units/', views.StudentCourseUnitsView.as_view(), name='student_course_units'),
     path('student/units/<int:unit_id>/attendance/', views.StudentAttendanceView.as_view(), name='student_attendance'),
+    path('student/reapply/<int:enrollment_id>/', views.student_reapply_unit, name='student_reapply_unit'),
 ]

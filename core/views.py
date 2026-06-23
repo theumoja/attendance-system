@@ -66,9 +66,11 @@ def home(request):
     return redirect('core:login')
 
 
+# core/views.py
+
+# --- UPDATE TEACHER APPROVALS VIEW SYSTEM ---
 class TeacherStudentApprovalsView(GroupRequiredMixin, TemplateView):
     group_name = 'Teacher'
-    # NOTE: Ensure this matches your actual template folder structure path
     template_name = 'core/teacher/teacher_student_approvals.html' 
 
     def get_context_data(self, **kwargs):
@@ -76,16 +78,15 @@ class TeacherStudentApprovalsView(GroupRequiredMixin, TemplateView):
         teacher_courses = TeacherAssignment.objects.filter(teacher=self.request.user).values_list('course_id', flat=True)
         units = CourseUnit.objects.filter(course_id__in=teacher_courses)
         
-        # 1. Pending student enrollments for those units
+        # Pull records that are brand new OR have been resubmitted
         context['pending_enrollments'] = StudentUnitEnrollment.objects.filter(
             course_unit__in=units,
-            is_approved=False
+            status__in=['PENDING', 'REAPPLIED']
         ).select_related('student', 'course_unit__course').order_by('course_unit')
         
-        # 2. Approved student enrollments for those units (NEW)
         context['approved_enrollments'] = StudentUnitEnrollment.objects.filter(
             course_unit__in=units,
-            is_approved=True
+            status='APPROVED'
         ).select_related('student', 'course_unit__course').order_by('course_unit')
         
         return context
@@ -93,8 +94,6 @@ class TeacherStudentApprovalsView(GroupRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         enrollment_id = request.POST.get('enrollment_id')
         action = request.POST.get('action')
-        
-        # Fetch enrollment without hardcoding is_approved=False so we can process revocations
         enrollment = get_object_or_404(StudentUnitEnrollment, pk=enrollment_id)
         
         if not TeacherAssignment.objects.filter(teacher=request.user, course=enrollment.course_unit.course).exists():
@@ -103,9 +102,9 @@ class TeacherStudentApprovalsView(GroupRequiredMixin, TemplateView):
 
         if action == 'approve':
             enrollment.is_approved = True
+            enrollment.status = 'APPROVED'
             enrollment.save()
             
-            # Ensure group and profile flag states align
             student_group, _ = Group.objects.get_or_create(name='Student')
             enrollment.student.groups.add(student_group)
             
@@ -114,15 +113,79 @@ class TeacherStudentApprovalsView(GroupRequiredMixin, TemplateView):
             student_profile.save()
             
             messages.success(request, f'{enrollment.student.username} approved for {enrollment.course_unit.code}.')
-        elif action == 'reject' or action == 'revoke':
-            student_username = enrollment.student.username
-            unit_code = enrollment.course_unit.code
-            enrollment.delete()
-            messages.success(request, f'Removed enrollment for {student_username} from unit {unit_code}.')
+        elif action in ['reject', 'revoke']:
+            # Soft change state instead of deleting
+            enrollment.is_approved = False
+            enrollment.status = 'REVOKED'
+            enrollment.save()
+            messages.success(request, f'Revoked enrollment for {enrollment.student.username} from unit {enrollment.course_unit.code}.')
             
         return redirect('core:teacher_student_approvals')
 
 
+# --- UPDATE TEACHER DASHBOARD VIEW POST METHOD ---
+class TeacherDashboardView(GroupRequiredMixin, TemplateView):
+    group_name = 'Teacher'
+    template_name = 'core/teacher/dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        assignments = TeacherAssignment.objects.filter(teacher=self.request.user).select_related('course')
+        context['assignments'] = assignments
+        
+        teacher_courses = assignments.values_list('course_id', flat=True)
+        units = CourseUnit.objects.filter(course_id__in=teacher_courses)
+        context['pending_enrollments'] = StudentUnitEnrollment.objects.filter(
+            course_unit__in=units,
+            status__in=['PENDING', 'REAPPLIED']
+        ).select_related('student', 'course_unit__course').order_by('course_unit')
+        
+        return context
+
+    def post(self, request, *args, **kwargs):
+        enrollment_id = request.POST.get('enrollment_id')
+        action = request.POST.get('action')
+        enrollment = get_object_or_404(StudentUnitEnrollment, pk=enrollment_id)
+        
+        if not TeacherAssignment.objects.filter(teacher=request.user, course=enrollment.course_unit.course).exists():
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied
+
+        if action == 'approve':
+            enrollment.is_approved = True
+            enrollment.status = 'APPROVED'
+            enrollment.save()
+            
+            student_group, _ = Group.objects.get_or_create(name='Student')
+            enrollment.student.groups.add(student_group)
+            
+            student_profile = enrollment.student.profile
+            student_profile.is_approved = True
+            student_profile.save()
+            messages.success(request, f'{enrollment.student.username} approved.')
+        elif action == 'reject':
+            enrollment.is_approved = False
+            enrollment.status = 'REVOKED'
+            enrollment.save()
+            messages.success(request, 'Enrollment status updated to Revoked.')
+            
+        return redirect('core:teacher_dashboard')
+
+
+
+
+
+# --- NEW REAPPLY CONTROLLER ---
+@login_required
+@user_passes_test(lambda u: u.groups.filter(name='Student').exists())
+def student_reapply_unit(request, enrollment_id):
+    if request.method == 'POST':
+        enrollment = get_object_or_404(StudentUnitEnrollment, pk=enrollment_id, student=request.user, status='REVOKED')
+        enrollment.status = 'REAPPLIED'
+        enrollment.is_approved = False
+        enrollment.save()
+        messages.success(request, f"Successfully sent re-application for {enrollment.course_unit.code}.")
+    return redirect('core:student_dashboard')
 
 def signup_view(request):
     if request.method == 'POST':
@@ -225,20 +288,25 @@ def superuser_admin_approvals(request):
     return render(request, 'core/admin/admin_approvals.html', {'profiles': profiles})
 
 
-# ---------- Student Views ----------
+
+# --- UPDATE STUDENT DASHBOARD VIEW ---
 class StudentDashboardView(GroupRequiredMixin, TemplateView):
     group_name = 'Student'
     template_name = 'core/student/dashboard.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Approved unit enrollments
+        # Active and accessible units
         context['enrollments'] = StudentUnitEnrollment.objects.filter(
             student=self.request.user,
-            is_approved=True
+            status='APPROVED'
         ).select_related('course_unit__course')
+        
+        # Track historical records, application delays, and blocks
+        context['other_enrollments'] = StudentUnitEnrollment.objects.filter(
+            student=self.request.user
+        ).exclude(status='APPROVED').select_related('course_unit__course')
         return context
-
 
 # Optional: view to list units of a course (if still needed)
 class StudentCourseUnitsView(GroupRequiredMixin, ListView):
@@ -282,56 +350,6 @@ class StudentAttendanceView(GroupRequiredMixin, ListView):
 
 
 
-class TeacherDashboardView(GroupRequiredMixin, TemplateView):
-    group_name = 'Teacher'
-    template_name = 'core/teacher/dashboard.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # 1. Fetch courses assigned to this teacher
-        assignments = TeacherAssignment.objects.filter(teacher=self.request.user).select_related('course')
-        context['assignments'] = assignments
-        
-        # 2. Fetch pending student enrollments for these exact courses
-        teacher_courses = assignments.values_list('course_id', flat=True)
-        units = CourseUnit.objects.filter(course_id__in=teacher_courses)
-        context['pending_enrollments'] = StudentUnitEnrollment.objects.filter(
-            course_unit__in=units,
-            is_approved=False
-        ).select_related('student', 'course_unit__course').order_by('course_unit')
-        
-        return context
-
-    def post(self, request, *args, **kwargs):
-        enrollment_id = request.POST.get('enrollment_id')
-        action = request.POST.get('action')
-        enrollment = get_object_or_404(StudentUnitEnrollment, pk=enrollment_id, is_approved=False)
-        
-        # Security Check: Ensure this teacher owns the course for this unit
-        if not TeacherAssignment.objects.filter(teacher=request.user, course=enrollment.course_unit.course).exists():
-            from django.core.exceptions import PermissionDenied
-            raise PermissionDenied
-
-        if action == 'approve':
-            enrollment.is_approved = True
-            enrollment.save()
-            
-            # Update student group and profile parameters
-            student_group, _ = Group.objects.get_or_create(name='Student')
-            enrollment.student.groups.add(student_group)
-            
-            student_profile = enrollment.student.profile
-            student_profile.is_approved = True
-            student_profile.save()
-            
-            messages.success(request, f'{enrollment.student.username} approved for {enrollment.course_unit.code}.')
-        elif action == 'reject':
-            enrollment.delete()
-            messages.success(request, 'Enrollment rejected.')
-            
-        # Redirect right back to the teacher dashboard
-        return redirect('core:teacher_dashboard')
 
 
 class TeacherMarkAttendanceView(GroupRequiredMixin, View):

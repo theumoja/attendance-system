@@ -36,18 +36,26 @@ class TeacherAssignment(models.Model):
     def __str__(self):
         return f"{self.teacher.username} teaches {self.course.code}"
 
-# ---------- Student Unit Enrollment (NEW) ----------
+# core/models.py
+
 class StudentUnitEnrollment(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending Approval'),
+        ('APPROVED', 'Approved'),
+        ('REVOKED', 'Revoked'),
+        ('REAPPLIED', 'Reapplied'),
+    ]
+    
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'groups__name': 'Student'})
     course_unit = models.ForeignKey(CourseUnit, on_delete=models.CASCADE, related_name='enrollments')
-    is_approved = models.BooleanField(default=False)   # teacher must approve
+    is_approved = models.BooleanField(default=False)   # True only when status is APPROVED
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
 
     class Meta:
         unique_together = ['student', 'course_unit']
 
     def __str__(self):
-        status = "Approved" if self.is_approved else "Pending"
-        return f"{self.student.username} -> {self.course_unit.code} ({status})"
+        return f"{self.student.username} -> {self.course_unit.code} ({self.get_status_display()})"
 
 # ---------- Attendance Record (unchanged) ----------
 class AttendanceRecord(models.Model):

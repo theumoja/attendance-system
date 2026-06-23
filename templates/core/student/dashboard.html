@@ -21,7 +21,51 @@
         </div>
     </div>
     {% empty %}
-    <p>You are not yet approved for any course units.</p>
+    <div class="col-12">
+        <p class="text-muted">You are not yet approved for any active course units.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<hr class="my-5">
+
+<h4 class="fw-bold mb-4"><i class="fas fa-history me-2"></i>Application Status & Revocations</h4>
+<div class="row">
+    {% for enrollment in other_enrollments %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card p-3 border-light shadow-sm">
+            <div class="d-flex align-items-start">
+                <div class="card-icon me-3 text-secondary">
+                    <i class="fas fa-info-circle fa-lg"></i>
+                </div>
+                <div class="w-100">
+                    <h6 class="fw-bold mb-1">{{ enrollment.course_unit.code }}</h6>
+                    <p class="mb-1 text-muted small">{{ enrollment.course_unit.name }}</p>
+                    
+                    <div class="mt-2 d-flex align-items-center justify-content-between">
+                        {% if enrollment.status == 'PENDING' %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i> Pending Approval</span>
+                        {% elif enrollment.status == 'REAPPLIED' %}
+                            <span class="badge bg-info text-dark"><i class="fas fa-sync me-1"></i> Reapplied (Pending)</span>
+                        {% elif enrollment.status == 'REVOKED' %}
+                            <span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i> Revoked</span>
+                            
+                            <form action="{% url 'core:student_reapply_unit' enrollment.id %}" method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-xs btn-outline-primary py-1 px-2 font-monospace" style="font-size: 0.75rem;">
+                                    Reapply
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <p class="text-muted small">No pending, trackable, or revoked courses recorded on this account.</p>
+    </div>
     {% endfor %}
 </div>
 {% endblock %}
