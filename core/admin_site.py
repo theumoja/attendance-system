@@ -1,6 +1,8 @@
 # core/admin_site.py
 from django.contrib.admin import AdminSite
 from django.urls import reverse_lazy
+from django.shortcuts import redirect  # Added missing import
+
 
 class CustomAdminSite(AdminSite):
     site_header = "Attendance System Admin"

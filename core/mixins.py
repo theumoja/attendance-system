@@ -4,7 +4,7 @@ from django.urls import reverse_lazy
 
 class GroupRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     group_name = None
-    login_url = reverse_lazy('login')          # <-- add this
+    login_url = reverse_lazy('core:login')
 
     def test_func(self):
         return self.request.user.groups.filter(name=self.group_name).exists()

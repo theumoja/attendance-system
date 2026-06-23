@@ -1,13 +1,27 @@
 {% extends "core/base.html" %}
 {% block content %}
-<h2>My Courses</h2>
-<div class="list-group">
+<h4 class="fw-bold mb-4"><i class="fas fa-book-open me-2"></i>My Approved Units</h4>
+<div class="row">
     {% for enrollment in enrollments %}
-        <a href="{% url 'core:student_course_units' enrollment.course.id %}" class="list-group-item list-group-item-action">
-            {{ enrollment.course.code }} - {{ enrollment.course.name }}
-        </a>
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card card-dashboard p-3">
+            <div class="d-flex align-items-start">
+                <div class="card-icon me-3">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-1">{{ enrollment.course_unit.code }}</h6>
+                    <p class="mb-0 text-muted">{{ enrollment.course_unit.name }}</p>
+                    <small class="text-muted">{{ enrollment.course_unit.course.code }} - {{ enrollment.course_unit.course.name }}</small>
+                    <a href="{% url 'core:student_attendance' enrollment.course_unit.id %}" class="btn btn-sm btn-school-primary mt-2">
+                        View Attendance <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
     {% empty %}
-        <p>You are not enrolled in any courses.</p>
+    <p>You are not yet approved for any course units.</p>
     {% endfor %}
 </div>
 {% endblock %}
