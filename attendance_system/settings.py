@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-e6%^0o*gc2*_v0fjfel#82qw@zuxrmqi(tz+smt7s2##er2=d*'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*','https://attendance-system-pgli.onrender.com']
 
