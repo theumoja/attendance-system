@@ -57,16 +57,22 @@ def student_dashboard(request):
     student = request.user.student_profile
     records = AttendanceRecord.objects.filter(student=student).select_related('session__timetable_entry__course_unit')
     
-    # Stats per course unit
+    # Track overall stats alongside course unit stats
     unit_attendance = {}
+    total_present = 0
+    total_absent = 0
+    
     for rec in records:
         cu_name = rec.session.timetable_entry.course_unit.name
         if cu_name not in unit_attendance:
             unit_attendance[cu_name] = {'present': 0, 'absent': 0}
+            
         if rec.status == 'PRESENT':
             unit_attendance[cu_name]['present'] += 1
+            total_present += 1
         else:
             unit_attendance[cu_name]['absent'] += 1
+            total_absent += 1
     
     unit_names = list(unit_attendance.keys())
     present_counts = [unit_attendance[u]['present'] for u in unit_names]
@@ -74,6 +80,8 @@ def student_dashboard(request):
 
     context = {
         'records': records,
+        'total_present': total_present,
+        'total_absent': total_absent,
         'unit_names': json.dumps(unit_names),
         'present_counts': json.dumps(present_counts),
         'absent_counts': json.dumps(absent_counts),

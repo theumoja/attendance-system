@@ -699,19 +699,35 @@
         <!-- Desktop nav -->
         <div class="nav-links">
             <a href="{% url 'attendance:home' %}"><i class="fas fa-home"></i> Home</a>
+            
             {% if user.is_authenticated %}
-                <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-tachometer-alt"></i> Admin</a>
-                <a href="{% url 'attendance:teacher_dashboard' %}"><i class="fas fa-chalkboard-teacher"></i> Teacher</a>
-                <a href="{% url 'attendance:student_dashboard' %}"><i class="fas fa-user-graduate"></i> Student</a>
-                <div class="dropdown">
-                    <button class="dropdown-btn"><i class="fas fa-cog"></i> Manage <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i></button>
-                    <div class="dropdown-content">
-                        <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-book"></i> Courses</a>
-                        <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-user-tie"></i> Teachers</a>
-                        <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-users"></i> Students</a>
-                        <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Timetable</a>
+                
+                <!-- Admin-Only Links & Management Dropdown -->
+                {% if user.role == 'ADMIN' or user.is_staff %}
+                    <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-tachometer-alt"></i> Admin</a>
+                    <div class="dropdown">
+                        <button class="dropdown-btn">
+                            <i class="fas fa-cog"></i> Manage <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-book"></i> Courses</a>
+                            <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-user-tie"></i> Teachers</a>
+                            <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-users"></i> Students</a>
+                            <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Timetable</a>
+                        </div>
                     </div>
-                </div>
+                {% endif %}
+        
+                <!-- Teacher-Only Links -->
+                {% if user.role == 'TEACHER' %}
+                    <a href="{% url 'attendance:teacher_dashboard' %}"><i class="fas fa-chalkboard-teacher"></i> Teacher</a>
+                {% endif %}
+        
+                <!-- Student-Only Links -->
+                {% if user.role == 'STUDENT' %}
+                    <a href="{% url 'attendance:student_dashboard' %}"><i class="fas fa-user-graduate"></i> Student</a>
+                {% endif %}
+        
             {% endif %}
         </div>
 
@@ -737,21 +753,31 @@
         <div class="drawer-links">
             <a href="{% url 'attendance:home' %}"><i class="fas fa-home"></i> Home Page</a>
             {% if user.is_authenticated %}
-                <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-tachometer-alt"></i> Admin Dashboard</a>
-                <a href="{% url 'attendance:teacher_dashboard' %}"><i class="fas fa-chalkboard-teacher"></i> Teacher Hub</a>
-                <a href="{% url 'attendance:student_dashboard' %}"><i class="fas fa-user-graduate"></i> Student Hub</a>
-                <div class="drawer-dropdown" id="drawerDropdown">
-                    <button class="dropdown-btn" id="drawerDropdownBtn">
-                        <span><i class="fas fa-cog"></i> Management</span>
-                        <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
-                    </button>
-                    <div class="dropdown-content">
-                        <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-book"></i> Upload Courses</a>
-                        <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-user-tie"></i> Upload Teachers</a>
-                        <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-users"></i> Upload Students</a>
-                        <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetable</a>
+                
+                {% if user.role == 'ADMIN' or user.is_staff %}
+                    <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-tachometer-alt"></i> Admin Dashboard</a>
+                    <div class="drawer-dropdown" id="drawerDropdown">
+                        <button class="dropdown-btn" id="drawerDropdownBtn">
+                            <span><i class="fas fa-cog"></i> Management</span>
+                            <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-book"></i> Upload Courses</a>
+                            <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-user-tie"></i> Upload Teachers</a>
+                            <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-users"></i> Upload Students</a>
+                            <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetable</a>
+                        </div>
                     </div>
-                </div>
+                {% endif %}
+    
+                {% if user.role == 'TEACHER' %}
+                    <a href="{% url 'attendance:teacher_dashboard' %}"><i class="fas fa-chalkboard-teacher"></i> Teacher Hub</a>
+                {% endif %}
+    
+                {% if user.role == 'STUDENT' %}
+                    <a href="{% url 'attendance:student_dashboard' %}"><i class="fas fa-user-graduate"></i> Student Hub</a>
+                {% endif %}
+    
             {% else %}
                 <a href="{% url 'attendance:login' %}" class="login-btn" style="background:var(--primary);color:#fff;justify-content:center;"><i class="fas fa-sign-in-alt"></i> Login</a>
             {% endif %}

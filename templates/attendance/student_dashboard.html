@@ -7,14 +7,12 @@
 
 <h2><i class="fas fa-user-graduate"></i> My Attendance Dashboard</h2>
 
-<!-- Download Report Button -->
 <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
     <a href="{% url 'attendance:download_student_report' %}" class="btn btn-outline">
         <i class="fas fa-download"></i> Download CSV Report
     </a>
 </div>
 
-<!-- Summary Stats -->
 <div class="grid-3" style="margin-bottom: 2rem;">
     <div class="stat-card">
         <div class="icon"><i class="fas fa-calendar-check"></i></div>
@@ -27,19 +25,18 @@
         <div class="icon"><i class="fas fa-check-circle" style="color:var(--success);"></i></div>
         <div class="info">
             <h4>Present</h4>
-            <div class="number">{{ records|filter_status:'PRESENT'|length }}</div>
+            <div class="number">{{ total_present }}</div>
         </div>
     </div>
     <div class="stat-card">
         <div class="icon"><i class="fas fa-times-circle" style="color:var(--danger);"></i></div>
         <div class="info">
             <h4>Absent</h4>
-            <div class="number">{{ records|filter_status:'ABSENT'|length }}</div>
+            <div class="number">{{ total_absent }}</div>
         </div>
     </div>
 </div>
 
-<!-- Attendance per Course Unit (Stacked Bar) -->
 <div class="card" style="margin-bottom: 2rem;">
     <h3><i class="fas fa-chart-bar"></i> Attendance by Course Unit</h3>
     <div class="chart-container">
@@ -47,7 +44,6 @@
     </div>
 </div>
 
-<!-- Recent Records Table -->
 <div class="card">
     <h3><i class="fas fa-history"></i> Recent Attendance Records</h3>
     <div class="table-wrapper">

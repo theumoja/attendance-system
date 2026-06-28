@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
-from attendance import views_admin, views_users, views_analytics
+from attendance import views_admin, views_users, views_analytics, views
 
 app_name = 'attendance'
 
@@ -9,7 +9,7 @@ urlpatterns = [
     # Baseline Root Landing Page Routing
     path('', views_users.home, name='home'),
     # Auth routing infrastructure
-    path('login/', auth_views.LoginView.as_view(template_name='attendance/login.html'), name='login'),
+    path('login/', views.custom_login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
     # Execution Environment Hubs
