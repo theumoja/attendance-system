@@ -30,9 +30,13 @@ class CourseUnit(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+# models.py (Modified TeacherProfile)
+
 class TeacherProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
     name = models.CharField(max_length=255)
+    # Added to handle administrative teacher-to-course assignments
+    courses = models.ManyToManyField('Course', blank=True, related_name='teachers')
 
     def __str__(self):
         return self.name

@@ -233,13 +233,27 @@ def download_student_report(request):
     wb.save(response)
     return response
 
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from attendance.models import User
+
+@login_required
+def home(request):
+    if request.user.role == User.IS_ADMIN:
+        return redirect('attendance:admin_dashboard')
+    elif request.user.role == User.IS_TEACHER:
+        return redirect('attendance:teacher_dashboard')
+    else:
+        return redirect('attendance:student_dashboard')
+
+'''
 def home(request):
     """
     Renders the baseline landing page explaining system operations, 
     workflows, and architecture rules.
     """
     return render(request, 'attendance/home.html')
-
+'''
 
 def custom_page_not_found(request, exception):
     return render(request, 'errors/404.html', status=404)

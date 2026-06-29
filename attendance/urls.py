@@ -8,6 +8,7 @@ app_name = 'attendance'
 urlpatterns = [
     # Baseline Root Landing Page Routing
     path('', views_users.home, name='home'),
+    
     # Auth routing infrastructure
     path('login/', views.custom_login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
@@ -35,4 +36,30 @@ urlpatterns = [
 
     # Student report download
     path('student/report/download/', views_users.download_student_report, name='download_student_report'),
+    
+    # Core Directory Management Views
+    path('user-admin/manage-teachers/', views_admin.manage_teachers, name='manage_teachers'),
+    path('user-admin/manage-students/', views_admin.manage_students, name='manage_students'),
+    path('user-admin/manage-courses/', views_admin.manage_courses, name='manage_courses'),
+    path('user-admin/manage-course-units/', views_admin.manage_course_units, name='manage_course_units'),
+
+    # =========================================================================
+    # CRITICAL RECORD EDIT / DELETE ROUTING ENGINE
+    # =========================================================================
+    
+    # Teachers CRUD Extensions (Standard Auto-Increment Integer Keys)
+    path('user-admin/manage-teachers/edit/<int:pk>/', views_admin.edit_teacher, name='edit_teacher'),
+    path('user-admin/manage-teachers/delete/<int:pk>/', views_admin.delete_teacher, name='delete_teacher'),
+
+    # Students CRUD Extensions (FIXED: Uses path to accommodate slashes in Reg Numbers)
+    path('user-admin/manage-students/edit/<path:pk>/', views_admin.edit_student, name='edit_student'),
+    path('user-admin/manage-students/delete/<path:pk>/', views_admin.delete_student, name='delete_student'),
+
+    # Courses CRUD Extensions (String Alphanumeric Primary Keys)
+    path('user-admin/manage-courses/edit/<str:pk>/', views_admin.edit_course, name='edit_course'),
+    path('user-admin/manage-courses/delete/<str:pk>/', views_admin.delete_course, name='delete_course'),
+
+    # Course Units CRUD Extensions (String Alphanumeric Primary Keys)
+    path('user-admin/manage-course-units/edit/<str:pk>/', views_admin.edit_course_unit, name='edit_course_unit'),
+    path('user-admin/manage-course-units/delete/<str:pk>/', views_admin.delete_course_unit, name='delete_course_unit'),
 ]
