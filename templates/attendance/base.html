@@ -355,6 +355,7 @@
         .instruction-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 1.25rem; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 1.5rem; font-size: 0.95rem; color: var(--primary-dark); }
         .alert { padding: 0.9rem 1.2rem; border-radius: var(--radius-sm); font-weight: 500; display: flex; align-items: center; gap: 0.75rem; border: 1px solid transparent; }
         .alert-success { background: var(--success-light); color: #065f46; border-color: #a7f3d0; }
+        .alert-danger { background: var(--danger-light); color: #991b1b; border-color: #fca5a5; }
 
         /* ----- Toast UI Frame ----- */
         .toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.75rem; max-width: 400px; width: 100%; }
@@ -455,6 +456,7 @@
                     <a href="{% url 'attendance:manage_students' %}"><i class="fas fa-user-graduate"></i> Students Directory</a>
                     <a href="{% url 'attendance:manage_courses' %}"><i class="fas fa-book"></i> Course Master List</a>
                     <a href="{% url 'attendance:manage_course_units' %}"><i class="fas fa-layer-group"></i> Course Units</a>
+                    <a href="{% url 'attendance:manage_streams' %}"><i class="fas fa-stream"></i> Academic Streams Layout</a>
                     
                     <div class="drawer-heading">Scheduling Operations</div>
                     <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetables</a>
@@ -463,6 +465,7 @@
                     <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Bulk Upload Courses</a>
                     <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Bulk Upload Teachers</a>
                     <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Bulk Upload Students</a>
+                    <a href="{% url 'attendance:bulk_upload_streams' %}"><i class="fas fa-upload"></i> Bulk Upload Streams</a>
                     
                     <div class="drawer-heading">System Export Controls</div>
                     <a href="{% url 'attendance:export_credentials' 'teachers' %}"><i class="fas fa-download"></i> Export Teacher Logins</a>
@@ -519,6 +522,9 @@
                     <a href="{% url 'attendance:manage_course_units' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_course_units' %}active{% endif %}">
                         <i class="fas fa-layer-group"></i> Course Units
                     </a>
+                    <a href="{% url 'attendance:manage_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_streams' %}active{% endif %}">
+                        <i class="fas fa-stream"></i> Academic Streams Layout
+                    </a>
                     
                     <span class="sidebar-divider"></span>
                     
@@ -536,6 +542,9 @@
                     </a>
                     <a href="{% url 'attendance:bulk_upload_students' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_students' %}active{% endif %}">
                         <i class="fas fa-upload"></i> Bulk Upload Students
+                    </a>
+                    <a href="{% url 'attendance:bulk_upload_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_streams' %}active{% endif %}">
+                        <i class="fas fa-upload"></i> Bulk Upload Streams
                     </a>
                     
                     <span class="sidebar-divider"></span>
@@ -580,7 +589,6 @@
             const appLayout = document.getElementById('appLayout');
 
             if (desktopSidebarToggle && appLayout) {
-                // Read from localStorage to preserve sidebar preferences across standard views
                 const sidebarState = localStorage.getItem('sidebar_collapsed');
                 if (sidebarState === 'true') {
                     appLayout.classList.add('sidebar-collapsed');
@@ -644,9 +652,9 @@
                     info: 'fa-info-circle'
                 };
                 toast.innerHTML = `
-                    <i class=\"fas ${iconMap[type] || 'fa-info-circle'}\"></i>
+                    <i class="fas ${iconMap[type] || 'fa-info-circle'}"></i>
                     <span>${message}</span>
-                    <button class=\"toast-close\"><i class=\"fas fa-times\"></i></button>
+                    <button class="toast-close"><i class="fas fa-times"></i></button>
                 `;
                 container.appendChild(toast);
                 toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());

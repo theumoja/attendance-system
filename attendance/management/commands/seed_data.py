@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, time
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from attendance.models import (
-    User, Course, CourseUnit, TeacherProfile, StudentProfile,
+    User, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
     TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord
 )
 
@@ -61,7 +61,27 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(f'  Unit {unit.code} created.')
 
-        # ---------- 3. Create Teachers ----------
+        # ---------- 3. Create Streams for Courses ----------
+        unique_streams_data = [
+            ('CIT', 'Year 1 CIT A'), ('CIT', 'Year 1 CIT B'), ('CIT', 'Year 1 CIT C'),
+            ('CIT', 'Year 2 CIT A'), ('CIT', 'Year 2 CIT B'), ('CIT', 'Year 2 CIT C'),
+            ('CIT', 'Year 3 CIT A'), ('CIT', 'Year 3 CIT B'),
+            ('BBA', 'Year 1 BBA A'), ('BBA', 'Year 1 BBA B'),
+            ('BBA', 'Year 2 BBA A'), ('BBA', 'Year 2 BBA B'),
+            ('BBA', 'Year 3 BBA A'), ('BBA', 'Year 3 BBA B'),
+            ('EDU', 'Year 1 EDU A'), ('EDU', 'Year 1 EDU B'),
+            ('EDU', 'Year 2 EDU A'), ('EDU', 'Year 2 EDU B'),
+            ('EDU', 'Year 3 EDU A')
+        ]
+
+        streams_dict = {}
+        for course_code, stream_name in unique_streams_data:
+            course_obj = Course.objects.get(code=course_code)
+            stream_obj, _ = Stream.objects.get_or_create(name=stream_name, course=course_obj)
+            streams_dict[stream_name] = stream_obj
+            self.stdout.write(f'  Stream "{stream_name}" registered for Course {course_code}.')
+
+        # ---------- 4. Create Teachers ----------
         teacher_list = [
             ('Dr. James Muwonge', 'james.muwonge@utc.ac.ug'),
             ('Prof. Grace Nambi', 'grace.nambi@utc.ac.ug'),
@@ -87,32 +107,30 @@ class Command(BaseCommand):
                 teachers.append(teacher)
                 self.stdout.write(f'Teacher {name} created.')
             else:
-                # ensure profile exists
                 teacher, _ = TeacherProfile.objects.get_or_create(user=user, defaults={'name': name})
                 teachers.append(teacher)
                 self.stdout.write(f'Teacher {name} already exists.')
 
-        # ---------- 4. Create Students ----------
-        # define courses to assign students
+        # ---------- 5. Create Students ----------
         cit_course = Course.objects.get(code='CIT')
         bba_course = Course.objects.get(code='BBA')
         edu_course = Course.objects.get(code='EDU')
 
         student_data = [
-            ('Aisha Nakato', '2024/001', 'aisha.nakato@utc.ac.ug', cit_course),
-            ('Brian Ssali', '2024/002', 'brian.ssali@utc.ac.ug', cit_course),
-            ('Christine Akello', '2024/003', 'christine.akello@utc.ac.ug', cit_course),
-            ('David Obote', '2024/004', 'david.obote@utc.ac.ug', bba_course),
-            ('Eva Mbabazi', '2024/005', 'eva.mbabazi@utc.ac.ug', bba_course),
-            ('Frank Opio', '2024/006', 'frank.opio@utc.ac.ug', bba_course),
-            ('Grace Auma', '2024/007', 'grace.auma@utc.ac.ug', edu_course),
-            ('Henry Ochieng', '2024/008', 'henry.ochieng@utc.ac.ug', edu_course),
-            ('Irene Nalongo', '2024/009', 'irene.nalongo@utc.ac.ug', cit_course),
-            ('John Kisakye', '2024/010', 'john.kisakye@utc.ac.ug', bba_course),
+            ('Aisha Nakato', '2024/001', 'aisha.nakato@utc.ac.ug', cit_course, 'Year 1 CIT A'),
+            ('Brian Ssali', '2024/002', 'brian.ssali@utc.ac.ug', cit_course, 'Year 1 CIT A'),
+            ('Christine Akello', '2024/003', 'christine.akello@utc.ac.ug', cit_course, 'Year 1 CIT B'),
+            ('David Obote', '2024/004', 'david.obote@utc.ac.ug', bba_course, 'Year 1 BBA A'),
+            ('Eva Mbabazi', '2024/005', 'eva.mbabazi@utc.ac.ug', bba_course, 'Year 1 BBA A'),
+            ('Frank Opio', '2024/006', 'frank.opio@utc.ac.ug', bba_course, 'Year 2 BBA A'),
+            ('Grace Auma', '2024/007', 'grace.auma@utc.ac.ug', edu_course, 'Year 1 EDU A'),
+            ('Henry Ochieng', '2024/008', 'henry.ochieng@utc.ac.ug', edu_course, 'Year 1 EDU B'),
+            ('Irene Nalongo', '2024/009', 'irene.nalongo@utc.ac.ug', cit_course, 'Year 2 CIT A'),
+            ('John Kisakye', '2024/010', 'john.kisakye@utc.ac.ug', bba_course, 'Year 3 BBA A'),
         ]
 
         students = []
-        for name, reg, email, course in student_data:
+        for name, reg, email, course, stream_name in student_data:
             username = reg.replace('/', '_')
             user, created = User.objects.get_or_create(
                 username=username,
@@ -122,6 +140,9 @@ class Command(BaseCommand):
                     'raw_password_archive': 'student123'
                 }
             )
+            
+            stream_obj = streams_dict[stream_name]
+            
             if created:
                 user.set_password('student123')
                 user.save()
@@ -129,27 +150,28 @@ class Command(BaseCommand):
                     reg_number=reg,
                     user=user,
                     name=name,
-                    course=course
+                    course=course,
+                    stream=stream_obj
                 )
                 students.append(student)
-                self.stdout.write(f'Student {name} ({reg}) created.')
+                self.stdout.write(f'Student {name} ({reg}) created in stream {stream_name}.')
             else:
-                # ensure profile exists
                 student, _ = StudentProfile.objects.get_or_create(
                     reg_number=reg,
-                    defaults={'user': user, 'name': name, 'course': course}
+                    defaults={'user': user, 'name': name, 'course': course, 'stream': stream_obj}
                 )
+                student.stream = stream_obj
+                student.save()
                 students.append(student)
                 self.stdout.write(f'Student {name} ({reg}) already exists.')
 
-        # ---------- 5. Create Timetable Batch and Entries ----------
-        # Use a week starting from next Monday
+        # ---------- 6. Create Timetable Batch and Entries ----------
         today = datetime.now().date()
-        days_ahead = 0 - today.weekday()  # 0=Monday, 6=Sunday
-        if days_ahead < 0:  # if today is after Monday, go to next week
+        days_ahead = 0 - today.weekday()
+        if days_ahead < 0:
             days_ahead += 7
         week_start = today + timedelta(days=days_ahead)
-        if week_start < today:  # if today is Monday, use today
+        if week_start < today:
             week_start = today
 
         batch, _ = TimetableBatch.objects.get_or_create(
@@ -159,12 +181,8 @@ class Command(BaseCommand):
         )
         self.stdout.write(f'Timetable batch created for week starting {week_start}.')
 
-        # clear any existing entries for this batch to avoid duplicates
-        # (if you want to keep them, use get_or_create with unique constraint)
-        # For simplicity, we delete and recreate
         TimetableEntry.objects.filter(batch=batch).delete()
 
-        # Get course units and teachers
         cit101 = CourseUnit.objects.get(code='CIT101')
         cit102 = CourseUnit.objects.get(code='CIT102')
         cit103 = CourseUnit.objects.get(code='CIT103')
@@ -175,75 +193,61 @@ class Command(BaseCommand):
         edu302 = CourseUnit.objects.get(code='EDU302')
         edu303 = CourseUnit.objects.get(code='EDU303')
 
-        # Map teachers (we have 4 teachers)
-        teacher1 = teachers[0]  # Dr. Muwonge
-        teacher2 = teachers[1]  # Prof. Nambi
-        teacher3 = teachers[2]  # Mr. Okello
-        teacher4 = teachers[3]  # Ms. Kyomugisha
+        teacher1 = teachers[0]
+        teacher2 = teachers[1]
+        teacher3 = teachers[2]
+        teacher4 = teachers[3]
 
-        # Define timetable schedule (day, start, end, unit, teacher, class_name)
         schedule = [
-            # Monday
             ('MON', '08:30', '10:00', cit101, teacher1, 'Year 1 CIT A'),
             ('MON', '10:15', '11:45', bba201, teacher2, 'Year 1 BBA A'),
             ('MON', '12:00', '13:30', edu301, teacher3, 'Year 1 EDU A'),
             ('MON', '14:00', '15:30', cit102, teacher1, 'Year 2 CIT A'),
-            # Tuesday
             ('TUE', '08:30', '10:00', cit103, teacher4, 'Year 2 CIT B'),
             ('TUE', '10:15', '11:45', bba202, teacher2, 'Year 2 BBA A'),
             ('TUE', '12:00', '13:30', edu302, teacher3, 'Year 2 EDU A'),
             ('TUE', '14:00', '15:30', cit101, teacher1, 'Year 1 CIT B'),
-            # Wednesday
             ('WED', '08:30', '10:00', bba203, teacher2, 'Year 3 BBA A'),
             ('WED', '10:15', '11:45', edu303, teacher3, 'Year 3 EDU A'),
             ('WED', '12:00', '13:30', cit102, teacher1, 'Year 2 CIT B'),
             ('WED', '14:00', '15:30', cit103, teacher4, 'Year 3 CIT A'),
-            # Thursday
             ('THU', '08:30', '10:00', bba201, teacher2, 'Year 1 BBA B'),
             ('THU', '10:15', '11:45', cit101, teacher1, 'Year 1 CIT C'),
             ('THU', '12:00', '13:30', edu301, teacher3, 'Year 1 EDU B'),
             ('THU', '14:00', '15:30', bba202, teacher2, 'Year 2 BBA B'),
-            # Friday
             ('FRI', '08:30', '10:00', cit102, teacher1, 'Year 2 CIT C'),
             ('FRI', '10:15', '11:45', edu302, teacher3, 'Year 2 EDU B'),
             ('FRI', '12:00', '13:30', bba203, teacher2, 'Year 3 BBA B'),
             ('FRI', '14:00', '15:30', cit103, teacher4, 'Year 3 CIT B'),
         ]
 
-        for day, start_str, end_str, unit, teacher, class_name in schedule:
+        for day, start_str, end_str, unit, teacher, stream_name in schedule:
             start_time = datetime.strptime(start_str, '%H:%M').time()
             end_time = datetime.strptime(end_str, '%H:%M').time()
-            entry = TimetableEntry.objects.create(
+            
+            stream_obj = streams_dict[stream_name]
+            
+            TimetableEntry.objects.create(
                 batch=batch,
                 day=day,
                 start_time=start_time,
                 end_time=end_time,
                 course_unit=unit,
                 teacher=teacher,
-                class_name=class_name
+                stream=stream_obj
             )
-            self.stdout.write(f'  Created timetable entry: {day} {start_str}-{end_str} {unit.code}')
+            self.stdout.write(f'  Created timetable entry: {day} {start_str}-{end_str} {unit.code} ({stream_name})')
 
-        # ---------- 6. Create Attendance Sessions and Records ----------
-        # For each timetable entry, create some attendance sessions on recent dates.
-        # We'll pick a few entries and generate records for some students.
+        # ---------- 7. Create Attendance Sessions and Records ----------
         entries = TimetableEntry.objects.filter(batch=batch)
 
-        # For each entry, create 1-2 sessions on different dates (simulating multiple lectures)
         for entry in entries:
-            # Generate a date within the current week (e.g., Monday to Friday)
-            base_date = week_start  # start of week
-            # Map day string to weekday offset (0=Monday)
+            base_date = week_start
             day_map = {'MON': 0, 'TUE': 1, 'WED': 2, 'THU': 3, 'FRI': 4, 'SAT': 5, 'SUN': 6}
             offset = day_map[entry.day]
             session_date = base_date + timedelta(days=offset)
 
-            # Create 1 or 2 sessions for this entry on different dates (if possible)
             for i in range(random.randint(1, 2)):
-                # If we already have a session for this entry on this date, skip to avoid duplicates
-                # We'll just create one session per entry for simplicity.
-                session_date = session_date  # use same date for now
-                # Create session
                 session, created = AttendanceSession.objects.get_or_create(
                     timetable_entry=entry,
                     date_marked=session_date,
@@ -253,22 +257,17 @@ class Command(BaseCommand):
                     }
                 )
                 if not created:
-                    # If session already exists, continue to next entry
                     continue
 
-                # Get students registered for this course unit's course
-                # For simplicity, we'll take all students in that course
-                course = entry.course_unit.course
-                students_in_course = StudentProfile.objects.filter(course=course)
+                students_in_stream = StudentProfile.objects.filter(stream=entry.stream)
 
-                # Randomly mark 70-90% present
-                for student in students_in_course:
+                for student in students_in_stream:
                     status = 'PRESENT' if random.random() < 0.8 else 'ABSENT'
                     AttendanceRecord.objects.create(
                         session=session,
                         student=student,
                         status=status
                     )
-                self.stdout.write(f'  Created attendance session for {entry.course_unit.code} on {session_date} with {students_in_course.count()} records.')
+                self.stdout.write(f'  Created attendance session for {entry.course_unit.code} ({entry.stream.name}) on {session_date} with {students_in_stream.count()} records.')
 
         self.stdout.write(self.style.SUCCESS('Seed completed successfully!'))

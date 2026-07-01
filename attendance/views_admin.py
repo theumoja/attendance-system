@@ -10,17 +10,131 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-
-from attendance.models import (
-    User, Course, CourseUnit, TeacherProfile, StudentProfile,
-    TimetableBatch, TimetableEntry, AttendanceRecord
-)
+import csv
+import io
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from attendance.models import *
 
 
 def generate_secure_password():
     return secrets.token_urlsafe(8)
 
 
+
+
+@login_required
+@transaction.atomic
+def manage_streams(request):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    if request.method == 'POST':
+        name = request.POST.get('stream_name', '').strip()
+        course_code = request.POST.get('course_code', '').strip()
+        
+        if name and course_code:
+            try:
+                course = Course.objects.get(code=course_code)
+                Stream.objects.create(name=name, course=course)
+                messages.success(request, f"Stream '{name}' successfully registered.")
+            except Course.DoesNotExist:
+                messages.error(request, "The specified parent course layout does not exist.")
+            except Exception as e:
+                messages.error(request, f"Error building structural layout: {str(e)}")
+        else:
+            messages.error(request, "All required input layout items must be filled.")
+        return redirect('attendance:manage_streams')
+
+    streams = Stream.objects.select_related('course').all()
+    courses = Course.objects.all()
+    return render(request, 'attendance/manage_streams.html', {
+        'streams': streams,
+        'courses': courses
+    })
+
+@login_required
+@transaction.atomic
+def edit_stream(request, stream_id):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    stream_obj = get_object_or_404(Stream, id=stream_id)
+    if request.method == 'POST':
+        name = request.POST.get('stream_name', '').strip()
+        course_code = request.POST.get('course_code', '').strip()
+        
+        if name and course_code:
+            try:
+                course = Course.objects.get(code=course_code)
+                stream_obj.name = name
+                stream_obj.course = course
+                stream_obj.save()
+                messages.success(request, "Structural stream modifications compiled securely.")
+                return redirect('attendance:manage_streams')
+            except Course.DoesNotExist:
+                messages.error(request, "Target parent course layout context does not exist.")
+        else:
+            messages.error(request, "Fields cannot be blank.")
+
+    courses = Course.objects.all()
+    return render(request, 'attendance/edit_stream.html', {
+        'stream': stream_obj,
+        'courses': courses
+    })
+
+@login_required
+@transaction.atomic
+def delete_stream(request, stream_id):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    stream_obj = get_object_or_404(Stream, id=stream_id)
+    name = stream_obj.name
+    stream_obj.delete()
+    messages.success(request, f"Stream framework structure '{name}' detached successfully.")
+    return redirect('attendance:manage_streams')
+
+@login_required
+@transaction.atomic
+def bulk_upload_streams(request):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    if request.method == 'POST' and request.FILES.get('csv_file'):
+        csv_file = request.FILES['csv_file']
+        if not csv_file.name.endswith('.csv'):
+            messages.error(request, "Data error: Expected standard comma-delimited flat CSV file structure.")
+            return redirect('attendance:bulk_upload_streams')
+
+        try:
+            stream_data = csv_file.read().decode('utf-8')
+            io_string = io.StringIO(stream_data)
+            reader = csv.reader(io_string)
+            next(reader, None)  # Safe skip baseline dataset headers
+
+            success_count = 0
+            for row in reader:
+                if not row or len(row) < 2:
+                    continue
+                stream_name = row[0].strip()
+                course_code = row[1].strip()
+
+                if stream_name and course_code:
+                    course = Course.objects.filter(code=course_code).first()
+                    if course:
+                        Stream.objects.get_or_create(name=stream_name, course=course)
+                        success_count += 1
+
+            messages.success(request, f"Ingested {success_count} unique structural academic stream mappings.")
+            return redirect('attendance:manage_streams')
+        except Exception as e:
+            messages.error(request, f"Parser exception detected: {str(e)}")
+
+    return render(request, 'attendance/bulk_upload_streams.html')
 # =========================================================================
 # 1. TEACHERS MANAGEMENT
 # =========================================================================
@@ -140,16 +254,17 @@ def manage_students(request):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        # Ensure single add handler catches the payload safely regardless of variant input structures
         if action == 'single':
             name = (request.POST.get('students_name') or request.POST.get('name', '')).strip()
             reg_number = (request.POST.get('registration_number') or request.POST.get('reg_number', '')).strip()
             email = request.POST.get('email', '').strip()
             course_code = request.POST.get('course', '').strip() 
+            stream_id = request.POST.get('stream', '').strip() # Added to capture stream assignment from form
             
             if name and reg_number and email and course_code:
                 try:
                     course = Course.objects.get(code=course_code)
+                    stream = Stream.objects.get(id=stream_id) if stream_id else None
                     password = generate_secure_password()
                     username = email.split('@')[0]
                     
@@ -166,23 +281,27 @@ def manage_students(request):
                         reg_number=reg_number,
                         user=user,
                         name=name,
-                        course=course
+                        course=course,
+                        stream=stream # Assigned relationally
                     )
                     messages.success(request, f"Student {name} successfully registered.")
                 except Course.DoesNotExist:
                     messages.error(request, "Selected course does not exist.")
+                except Stream.DoesNotExist:
+                    messages.error(request, "Selected stream does not exist.")
                 except Exception as e:
                     messages.error(request, f"Error occurred: {str(e)}")
             
             return redirect('attendance:manage_students')
 
-    # Fetch dependencies required for the template context
-    students = StudentProfile.objects.select_related('user', 'course').all()
+    students = StudentProfile.objects.select_related('user', 'course', 'stream').all()
     courses = Course.objects.all()
+    streams = Stream.objects.all() # Passed to render dropdown menus in management panel
     
     return render(request, 'attendance/manage_students.html', {
         'students': students,
-        'active_courses_list': courses 
+        'active_courses_list': courses,
+        'streams': streams
     })
 
 @login_required
@@ -198,9 +317,15 @@ def edit_student(request, pk):
         student.user.email = request.POST.get('email', '').strip()
         
         course_code = request.POST.get('course', '').strip()
+        stream_id = request.POST.get('stream', '').strip()
         try:
             student.course = Course.objects.get(code=course_code)
         except Course.DoesNotExist:
+            pass
+
+        try:
+            student.stream = Stream.objects.get(id=stream_id) if stream_id else None
+        except Stream.DoesNotExist:
             pass
             
         student.user.save()
@@ -209,7 +334,12 @@ def edit_student(request, pk):
         return redirect('attendance:manage_students')
         
     courses = Course.objects.all()
-    return render(request, 'attendance/edit_student.html', {'student': student, 'active_courses_list': courses})
+    streams = Stream.objects.filter(course=student.course)
+    return render(request, 'attendance/edit_student.html', {
+        'student': student, 
+        'active_courses_list': courses,
+        'streams': streams
+    })
 
 
 @login_required
@@ -391,6 +521,12 @@ def delete_course_unit(request, pk):
 # =========================================================================
 # 5. CORE ADMINISTRATIVE DASHBOARD & UTILITIES
 # =========================================================================
+import json
+from django.shortcuts import render
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+from .models import User, Course, TeacherProfile, StudentProfile, AttendanceRecord, Stream
 
 @login_required
 def admin_dashboard(request):
@@ -426,6 +562,11 @@ def admin_dashboard(request):
     student_present = [s.present for s in student_stats]
     student_absent = [s.total - s.present for s in student_stats]
 
+    # FIXED: Changed Count('studentprofile') to Count('students')
+    stream_counts = Stream.objects.select_related('course').annotate(
+        student_count=Count('students')
+    ).order_by('name')
+
     context = {
         'total_courses': total_courses,
         'total_teachers': total_teachers,
@@ -436,6 +577,7 @@ def admin_dashboard(request):
         'student_labels': json.dumps(student_labels),
         'student_present': json.dumps(student_present),
         'student_absent': json.dumps(student_absent),
+        'stream_counts': stream_counts,
     }
     return render(request, 'attendance/admin_dashboard.html', context)
 
@@ -496,10 +638,15 @@ def bulk_upload_students(request):
         next(reader, None)
 
         for row in reader:
-            if len(row) >= 4:
-                name, reg_num, email, course_code = row[0].strip(), row[1].strip(), row[2].strip(), row[3].strip()
+            if len(row) >= 5: # Updated from 4 to 5 columns
+                name, reg_num, email, course_code, stream_name = row[0].strip(), row[1].strip(), row[2].strip(), row[3].strip(), row[4].strip()
                 try:
                     course = Course.objects.get(code=course_code)
+                    
+                    # Look up or build the required Stream instance matching the course
+                    from attendance.models import Stream
+                    stream_obj, _ = Stream.objects.get_or_create(name=stream_name, course=course)
+                    
                     password = generate_secure_password()
                     user, created = User.objects.get_or_create(email=email, defaults={
                         'username': reg_num.replace('/', '_'),
@@ -509,12 +656,12 @@ def bulk_upload_students(request):
                     if created:
                         user.set_password(password)
                         user.save()
-                        StudentProfile.objects.create(user=user, reg_number=reg_num, name=name, course=course)
+                        # Included stream mapping parameter below
+                        StudentProfile.objects.create(user=user, reg_number=reg_num, name=name, course=course, stream=stream_obj)
                 except Course.DoesNotExist:
                     continue
         return redirect('attendance:export_credentials', role_type='students')
     return render(request, 'attendance/upload_students.html')
-
 
 @login_required
 @transaction.atomic
@@ -531,7 +678,7 @@ def upload_timetable(request):
                     TimetableEntry.objects.create(
                         batch=new_batch, day=entry.day, start_time=entry.start_time,
                         end_time=entry.end_time, course_unit=entry.course_unit,
-                        teacher=entry.teacher, class_name=entry.class_name
+                        teacher=entry.teacher, stream=entry.stream # Map the Stream relation object cleanly
                     )
                 return redirect('attendance:admin_dashboard')
 
@@ -545,15 +692,23 @@ def upload_timetable(request):
 
             for row in reader:
                 if len(row) >= 6:
-                    day, start_t, end_t, cu_code, teacher_email, class_name = row
+                    day, start_t, end_t, cu_code, teacher_email, stream_name = row
                     try:
                         cu = CourseUnit.objects.get(code=cu_code.strip())
                         teacher = TeacherProfile.objects.get(user__email=teacher_email.strip())
+                        
+                        # Dynamically get or build the target stream using the parsed string and course code relation
+                        from attendance.models import Stream
+                        stream_obj, _ = Stream.objects.get_or_create(
+                            name=stream_name.strip(),
+                            course=cu.course
+                        )
+                        
                         TimetableEntry.objects.create(
                             batch=new_batch, day=day.strip(),
                             start_time=datetime.strptime(start_t.strip(), '%H:%M').time(),
                             end_time=datetime.strptime(end_t.strip(), '%H:%M').time(),
-                            course_unit=cu, teacher=teacher, class_name=class_name.strip()
+                            course_unit=cu, teacher=teacher, stream=stream_obj # Saved relationally instead of class_name string
                         )
                     except (CourseUnit.DoesNotExist, TeacherProfile.DoesNotExist, ValueError):
                         continue
@@ -571,9 +726,11 @@ def download_template(request, template_type):
     elif template_type == 'teachers':
         content = "teachers_name,email\nJohn Doe,john@example.com"
     elif template_type == 'students':
-        content = "students_name,registration_number,email,course\nAlice Smith,2024/001,alice@example.com,C001"
+        # Updated to include stream_name header and example
+        content = "students_name,registration_number,email,course,stream_name\nAlice Smith,2024/001,alice@example.com,CIT,Year 1 CIT A"
     elif template_type == 'timetable':
-        content = "day,start_time,end_time,course_unit_code,teacher_email,class_name\nMON,08:30,10:00,CS101,john@example.com,Class A"
+        # Updated from class_name to stream_name header and example
+        content = "day,start_time,end_time,course_unit_code,teacher_email,stream_name\nMON,08:30,10:00,CIT101,james.muwonge@utc.ac.ug,Year 1 CIT A"
     else:
         content = ""
 

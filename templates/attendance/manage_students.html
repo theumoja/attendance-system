@@ -48,6 +48,16 @@
         font-weight: 600;
         font-size: 0.8rem;
     }
+    .stream-tag {
+        display: inline-flex;
+        padding: 0.2rem 0.6rem;
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
     .action-link {
         font-size: 0.9rem;
         font-weight: 600;
@@ -118,6 +128,16 @@
     </div>
 </div>
 
+{% if messages %}
+<div style="margin-bottom: 1.5rem;">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="card" style="padding:0; overflow:hidden;">
     <table class="table">
         <thead>
@@ -125,6 +145,7 @@
                 <th>Registration Identifiers</th>
                 <th>Student Full Name</th>
                 <th>Assigned Course Pathway</th>
+                <th>Allocated Stream</th>
                 <th>System Account Reference</th>
                 <th style="text-align: right;">Operations Matrix</th>
             </tr>
@@ -135,6 +156,7 @@
                 <td><strong style="color:var(--text-main);">{{ student.reg_number }}</strong></td>
                 <td>{{ student.name }}</td>
                 <td><span class="course-tag">{{ student.course.code }}</span></td>
+                <td><span class="stream-tag">{{ student.stream.name|default:"Unassigned" }}</span></td>
                 <td><span style="font-size:0.85rem; color:var(--text-muted);">{{ student.user.email }}</span></td>
                 <td style="text-align: right;">
                     <a href="{% url 'attendance:edit_student' student.pk %}" class="action-link edit">
@@ -147,7 +169,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                     <i class="fas fa-users-slash" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                     No student registrations discovered inside this workspace.
                 </td>
@@ -179,11 +201,20 @@
                 <input type="email" id="student_email" name="email" class="form-control" required placeholder="studentname@gmail.com">
             </div>
             <div class="form-group">
-                <label for="student_course">Track Stream Allocation</label>
+                <label for="student_course">Track Course Allocation</label>
                 <select id="student_course" name="course" class="form-control" required>
                     <option value="" disabled selected>Select Target Course Code...</option>
                     {% for course in active_courses_list %}
                         <option value="{{ course.code }}">{{ course.code }} - {{ course.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="student_stream">Specific Academic Stream</label>
+                <select id="student_stream" name="stream" class="form-control" required>
+                    <option value="" disabled selected>Select Stream Assignment...</option>
+                    {% for stream in active_streams_list %}
+                        <option value="{{ stream.id }}">{{ stream.name }} ({{ stream.course.code }})</option>
                     {% endfor %}
                 </select>
             </div>
@@ -202,11 +233,11 @@
         const closeBtn = document.getElementById('closeModalBtn');
         const cancelBtn = document.getElementById('cancelModalBtn');
 
-        openBtn.addEventListener('click', () => modal.classList.add('active'));
+        if(openBtn) openBtn.addEventListener('click', () => modal.classList.add('active'));
         const closeModal = () => modal.classList.remove('active');
         
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
+        if(closeBtn) closeBtn.addEventListener('click', closeModal);
+        if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
     });
 </script>

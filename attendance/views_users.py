@@ -1,29 +1,34 @@
 import json
 import csv
+from io import BytesIO
+from itertools import groupby
+from operator import attrgetter
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
+from django.urls import reverse
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 from attendance.models import (
     User, TimetableEntry, StudentProfile, AttendanceSession,
     AttendanceRecord, CourseUnit
 )
 
+@login_required
+def home(request):
+    """
+    Redirects the user to their appropriate dashboard based on their role.
+    """
+    if request.user.role == User.IS_ADMIN:
+        return redirect('attendance:admin_dashboard')
+    elif request.user.role == User.IS_TEACHER:
+        return redirect('attendance:teacher_dashboard')
+    else:
+        return redirect('attendance:student_dashboard')
 
-import json
-from django.shortcuts import render
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
-from attendance.models import User, TimetableEntry, StudentProfile, CourseUnit, AttendanceRecord
-
-from django.urls import reverse
-import json
-import traceback
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse, HttpResponse
-from django.contrib.auth.decorators import login_required
-from attendance.models import User, TimetableEntry, StudentProfile, AttendanceSession, AttendanceRecord
 
 @login_required
 def mark_attendance(request, entry_id):
@@ -32,7 +37,9 @@ def mark_attendance(request, entry_id):
         return HttpResponse("Unauthorized", status=403)
 
     entry = get_object_or_404(TimetableEntry, id=entry_id, teacher=request.user.teacher_profile)
-    students = StudentProfile.objects.filter(course__units=entry.course_unit)
+    
+    # MODIFIED: Filters roster strictly to students belonging to this precise stream
+    students = StudentProfile.objects.filter(stream=entry.stream)
 
     if request.method == 'POST':
         try:
@@ -54,15 +61,19 @@ def mark_attendance(request, entry_id):
             # Redirect to the home view – it will send teachers to the teacher dashboard
             return JsonResponse({
                 'status': 'success',
-                'redirect_url': reverse('attendance:home')  # or simply '/' if home is at root
+                'redirect_url': reverse('attendance:home')
             })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
     return render(request, 'attendance/mark_attendance.html', {'entry': entry, 'students': students})
+    
 
 @login_required
 def student_dashboard(request):
+    """
+    Displays personal attendance summary, historical records, and analytics charts for a student.
+    """
     if request.user.role != User.IS_STUDENT:
         return HttpResponse("Unauthorized", status=403)
         
@@ -101,102 +112,13 @@ def student_dashboard(request):
     }
     return render(request, 'attendance/student_dashboard.html', context)
 
-@login_required
-def download_student_report(request):
-    if request.user.role != User.IS_STUDENT:
-        return HttpResponse("Unauthorized", status=403)
-
-    student = request.user.student_profile
-    records = AttendanceRecord.objects.filter(student=student).select_related('session__timetable_entry__course_unit')
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="attendance_report_{student.reg_number}.csv"'
-    writer = csv.writer(response)
-    writer.writerow(['Course Unit', 'Date', 'Status', 'Class', 'Teacher'])
-
-    for rec in records:
-        session = rec.session
-        entry = session.timetable_entry
-        writer.writerow([
-            entry.course_unit.name,
-            session.date_marked,
-            rec.status,
-            entry.class_name,
-            entry.teacher.name
-        ])
-    return response
-
-
-import json
-import csv
-from io import BytesIO
-
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse, HttpResponse
-from django.contrib.auth.decorators import login_required
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, PatternFill
-
-from attendance.models import (
-    User, TimetableEntry, StudentProfile, AttendanceSession,
-    AttendanceRecord, CourseUnit
-)
-
-'''
-@login_required
-def teacher_dashboard(request):
-    if request.user.role != User.IS_TEACHER:
-        return HttpResponse("Unauthorized", status=403)
-        
-    teacher = request.user.teacher_profile
-    # Get active timetable (filter by current batch)
-    timetable = TimetableEntry.objects.filter(
-        batch__is_active=True, teacher=teacher
-    ).select_related('course_unit', 'batch')
-    
-    # Students under this teacher's course units
-    course_units = CourseUnit.objects.filter(timetableentry__teacher=teacher).distinct()
-    students = StudentProfile.objects.filter(course__units__in=course_units).distinct()
-    
-    # Stats per unit for chart
-    unit_stats = []
-    for cu in course_units:
-        present = AttendanceRecord.objects.filter(
-            session__timetable_entry__course_unit=cu,
-            session__timetable_entry__teacher=teacher,
-            status='PRESENT'
-        ).count()
-        total = AttendanceRecord.objects.filter(
-            session__timetable_entry__course_unit=cu,
-            session__timetable_entry__teacher=teacher
-        ).count()
-        rate = round((present / total) * 100, 2) if total > 0 else 0
-        unit_stats.append({'name': cu.name, 'rate': rate})
-    
-    unit_names = [u['name'] for u in unit_stats]
-    unit_rates = [u['rate'] for u in unit_stats]
-
-    # Get week start date (if any active batch)
-    week_start = None
-    active_batch = timetable.first().batch if timetable else None
-    if active_batch:
-        week_start = active_batch.week_start_date
-
-    context = {
-        'timetable': timetable,
-        'students': students,
-        'course_units': course_units,
-        'unit_names': json.dumps(unit_names),
-        'unit_rates': json.dumps(unit_rates),
-        'week_start': week_start,
-    }
-    return render(request, 'attendance/teacher_dashboard.html', context)
-'''
-from itertools import groupby
-from operator import attrgetter
 
 @login_required
 def teacher_dashboard(request):
+    """
+    Displays scheduled timetable slots, registered student scopes, 
+    and recent submission feeds broken down by date logs.
+    """
     if request.user.role != User.IS_TEACHER:
         return HttpResponse("Unauthorized", status=403)
         
@@ -229,7 +151,7 @@ def teacher_dashboard(request):
     ).select_related(
         'session__timetable_entry__course_unit',
         'student'
-    ).order_by('-session__date_marked')[:20]  # ordered by date desc
+    ).order_by('-session__date_marked')[:20]
 
     # Group the records by date
     grouped_by_date = {}
@@ -255,27 +177,31 @@ def teacher_dashboard(request):
         'unit_names': json.dumps(unit_names),
         'unit_rates': json.dumps(unit_rates),
         'week_start': week_start,
-        'grouped_records': grouped_records,  # list of (date, [records])
+        'grouped_records': grouped_records,
     }
     return render(request, 'attendance/teacher_dashboard.html', context)
+
+
 @login_required
 def download_student_report(request):
     if request.user.role != User.IS_STUDENT:
         return HttpResponse("Unauthorized", status=403)
 
     student = request.user.student_profile
+    # Added select_related for the stream relation to keep query lookup efficient
     records = AttendanceRecord.objects.filter(student=student).select_related(
         'session__timetable_entry__course_unit',
-        'session__timetable_entry__teacher'
+        'session__timetable_entry__teacher',
+        'session__timetable_entry__stream'
     )
 
-    # Create Excel workbook
+    # Create Excel workbook using openpyxl
     wb = Workbook()
     ws = wb.active
     ws.title = "Attendance Report"
 
-    # Headers
-    headers = ['Course Unit', 'Date', 'Status', 'Class', 'Teacher']
+    # Headers updated to represent the Stream architecture
+    headers = ['Course Unit', 'Date', 'Status', 'Stream', 'Teacher']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = Font(bold=True)
@@ -289,10 +215,10 @@ def download_student_report(request):
         ws.cell(row=row_num, column=1, value=entry.course_unit.name)
         ws.cell(row=row_num, column=2, value=session.date_marked.strftime('%Y-%m-%d'))
         ws.cell(row=row_num, column=3, value=rec.status)
-        ws.cell(row=row_num, column=4, value=entry.class_name)
+        ws.cell(row=row_num, column=4, value=entry.stream.name if entry.stream else "") # Changed from entry.class_name
         ws.cell(row=row_num, column=5, value=entry.teacher.name)
 
-    # Auto-adjust column widths
+    # Auto-adjust column widths dynamically
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter
@@ -306,31 +232,11 @@ def download_student_report(request):
         ws.column_dimensions[column].width = adjusted_width
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="attendance_report_{student.reg_number}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename=\"attendance_report_{student.reg_number}.xlsx\"'
     wb.save(response)
     return response
 
-from django.shortcuts import redirect
-from django.contrib.auth.decorators import login_required
-from attendance.models import User
-
-@login_required
-def home(request):
-    if request.user.role == User.IS_ADMIN:
-        return redirect('attendance:admin_dashboard')
-    elif request.user.role == User.IS_TEACHER:
-        return redirect('attendance:teacher_dashboard')
-    else:
-        return redirect('attendance:student_dashboard')
-
-'''
-def home(request):
-    """
-    Renders the baseline landing page explaining system operations, 
-    workflows, and architecture rules.
-    """
-    return render(request, 'attendance/home.html')
-'''
+# ---------- Custom Error Handlers ----------
 
 def custom_page_not_found(request, exception):
     return render(request, 'errors/404.html', status=404)

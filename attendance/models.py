@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-import uuid
 
 class User(AbstractUser):
     IS_ADMIN = 'ADMIN'
@@ -13,7 +12,7 @@ class User(AbstractUser):
         (IS_STUDENT, 'Student'),
     ]
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=IS_STUDENT)
-    raw_password_archive = models.CharField(max_length=128, blank=True, null=True) # Stored temporarily for Admin CSV download
+    raw_password_archive = models.CharField(max_length=128, blank=True, null=True)
 
 class Course(models.Model):
     code = models.CharField(max_length=20, primary_key=True)
@@ -21,6 +20,14 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+class Stream(models.Model):
+    """ADDED: Relational Stream groupings linked directly to a parent course program."""
+    name = models.CharField(max_length=100)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='streams')
+
+    def __str__(self):
+        return self.name
 
 class CourseUnit(models.Model):
     code = models.CharField(max_length=20, primary_key=True)
@@ -30,12 +37,9 @@ class CourseUnit(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
-# models.py (Modified TeacherProfile)
-
 class TeacherProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='teacher_profile')
     name = models.CharField(max_length=255)
-    # Added to handle administrative teacher-to-course assignments
     courses = models.ManyToManyField('Course', blank=True, related_name='teachers')
 
     def __str__(self):
@@ -46,6 +50,7 @@ class StudentProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
     name = models.CharField(max_length=255)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='students')
+    stream = models.ForeignKey(Stream, on_delete=models.CASCADE, related_name='students') # UPDATED TO FOREIGN KEY
 
     def __str__(self):
         return f"{self.reg_number} - {self.name}"
@@ -67,7 +72,7 @@ class TimetableEntry(models.Model):
     end_time = models.TimeField()
     course_unit = models.ForeignKey(CourseUnit, on_delete=models.CASCADE)
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.CASCADE)
-    class_name = models.CharField(max_length=100)
+    stream = models.ForeignKey(Stream, on_delete=models.CASCADE, related_name='entries') # MODIFIED FROM class_name STRING
 
 class AttendanceSession(models.Model):
     timetable_entry = models.ForeignKey(TimetableEntry, on_delete=models.CASCADE)

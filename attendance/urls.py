@@ -63,4 +63,9 @@ urlpatterns = [
     path('user-admin/manage-course-units/edit/<str:pk>/', views_admin.edit_course_unit, name='edit_course_unit'),
     path('user-admin/manage-course-units/delete/<str:pk>/', views_admin.delete_course_unit, name='delete_course_unit'),
     path('change-password/', views.change_password_view, name='change_password'),
+
+    path('management/streams/', views_admin.manage_streams, name='manage_streams'),
+    path('management/streams/edit/<int:stream_id>/', views_admin.edit_stream, name='edit_stream'),
+    path('management/streams/delete/<int:stream_id>/', views_admin.delete_stream, name='delete_stream'),
+    path('management/streams/bulk-upload/', views_admin.bulk_upload_streams, name='bulk_upload_streams'),
 ]

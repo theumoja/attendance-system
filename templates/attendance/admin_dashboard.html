@@ -10,11 +10,11 @@
     .dashboard-nav .nav-link {
         background: var(--primary);
         color: #ffffff;
-        padding: 1.8rem 3rem;          /* doubled from 0.9rem 1.5rem */
+        padding: 1.8rem 3rem;
         border-radius: var(--radius-sm);
         text-decoration: none;
         font-weight: 700;
-        font-size: 1.8rem;             /* doubled from 0.9rem */
+        font-size: 1.8rem;
         transition: var(--transition);
         border: none;
         display: flex;
@@ -79,11 +79,44 @@
         background: #1e293b;
         transform: translateY(-2px);
     }
+    
+    /* Stream Matrix Table Styles */
+    .stream-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+    .stream-table th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        background: #f8fafc;
+        border-bottom: 2px solid var(--border);
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .stream-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+    }
+    .stream-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-light);
+        color: var(--primary);
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
 </style>
 
 <h2><i class="fas fa-chart-pie"></i> System Management Dashboard</h2>
 
-<!-- Summary Stats with dynamic overall rate -->
 <div class="grid-4" style="margin-bottom: 2.5rem;">
     <div class="stat-card">
         <div class="icon"><i class="fas fa-book-open"></i></div>
@@ -115,7 +148,6 @@
     </div>
 </div>
 
-<!-- Export Credentials Buttons -->
 <div class="export-buttons">
     <a href="{% url 'attendance:export_credentials' 'teachers' %}" class="btn">
         <i class="fas fa-download"></i> Export Teacher Credentials (.xlsx)
@@ -125,7 +157,6 @@
     </a>
 </div>
 
-<!-- Navigation Cards – BIG UPLOAD BUTTONS -->
 <div class="dashboard-nav">
     <a href="{% url 'attendance:bulk_upload_courses' %}" class="nav-link"><i class="fas fa-upload"></i> Upload Courses</a>
     <a href="{% url 'attendance:bulk_upload_teachers' %}" class="nav-link"><i class="fas fa-user-plus"></i> Upload Teachers</a>
@@ -133,7 +164,6 @@
     <a href="{% url 'attendance:upload_timetable' %}" class="nav-link"><i class="fas fa-calendar-plus"></i> Manage Timetable</a>
 </div>
 
-<!-- Charts Row 1: Overall attendance distribution + Per-teacher rates -->
 <div class="grid-2">
     <div class="card card-chart">
         <h3><i class="fas fa-dot-circle" style="color:var(--success);"></i> Attendance Status Distribution</h3>
@@ -149,11 +179,45 @@
     </div>
 </div>
 
-<!-- Charts Row 2: Student attendance breakdown (stacked bar) -->
 <div class="card card-chart" style="margin-top: 2rem;">
     <h3><i class="fas fa-users" style="color:var(--primary);"></i> Student Attendance (Top 10)</h3>
     <div class="chart-container" style="height: 300px;">
         <canvas id="studentStackedBar"></canvas>
+    </div>
+</div>
+
+<div class="card card-chart" style="margin-top: 2rem;">
+    <h3><i class="fas fa-stream" style="color:var(--secondary);"></i> Stream Enrollment Matrix (Students per Class)</h3>
+    <div style="overflow-x: auto;">
+        <table class="stream-table">
+            <thead>
+                <tr>
+                    <th>Academic Stream Name / Identifier</th>
+                    <th>Parent Course Program Framework</th>
+                    <th style="text-align: center; width: 180px;">Enrolled Students</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stream in stream_counts %}
+                <tr>
+                    <td><code style="font-size:1rem; font-weight:700; color:var(--text-main);">{{ stream.name }}</code></td>
+                    <td style="font-weight: 500; color: #475569;">{{ stream.course.code }} - {{ stream.course.name }}</td>
+                    <td style="text-align: center;">
+                        <span class="stream-count-badge">
+                            {{ stream.student_count|default:stream.students.count|default:0 }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        <i class="fas fa-users-slash" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                        No active academic stream enrollment indices configured.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -203,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // Unit rates bar chart (already present in data)
+            // Unit rates bar chart
             new Chart(document.getElementById('teacherBarChart'), {
                 type: 'bar',
                 data: {
@@ -229,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(() => console.warn('Analytics data unavailable'));
 
-    // Student stacked bar chart (data already in context as JSON)
+    // Student stacked bar chart
     const studentLabels = {{ student_labels|safe }};
     const presentData = {{ student_present|safe }};
     const absentData = {{ student_absent|safe }};
@@ -263,19 +327,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 plugins: { legend: { position: 'top' } }
             }
         });
-    }
-});
-new Chart(document.getElementById('attendanceLineChart'), {
-    type: 'line',
-    data: {
-        labels: historicalLabels,
-        datasets: [{
-            label: 'Attendance Tracking Over Time',
-            data: historicalCounts,
-            borderColor: '#2c6e6b',
-            tension: 0.2,
-            fill: false
-        }]
     }
 });
 </script>
