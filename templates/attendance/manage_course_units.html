@@ -157,7 +157,7 @@
             </tr>
         </thead>
         <tbody id="courseUnitsTableBody">
-            {% for unit in structural_units_list %}
+            {% for unit in course_units %}  <!-- corrected variable name -->
             <tr data-parent-course="{{ unit.course.code }}">
                 <td><code style="font-size:0.95rem; font-weight:700; color:var(--text-main);">{{ unit.code }}</code></td>
                 <td style="font-weight:500;">{{ unit.name }}</td>

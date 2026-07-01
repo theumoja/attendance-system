@@ -137,7 +137,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for course in individual_course_objects %}
+            {% for course in courses %}  <!-- corrected variable name -->
             <tr>
                 <td><code style="font-size:1rem; font-weight:700; color:var(--text-main);">{{ course.code }}</code></td>
                 <td style="font-weight: 500;">{{ course.name }}</td>
