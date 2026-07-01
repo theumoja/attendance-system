@@ -1,39 +1,142 @@
 {% extends 'attendance/base.html' %}
 {% block content %}
+
+<style>
+    .form-control {
+        width: 100%;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid var(--border, #d1d5db);
+        border-radius: var(--radius-sm, 6px);
+        font-family: var(--font, inherit);
+        font-size: 0.95rem;
+        background: #fff;
+        transition: var(--transition, 0.2s ease);
+        box-sizing: border-box;
+    }
+    .form-control:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    .form-group {
+        margin-bottom: 1.25rem;
+        text-align: left;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.4rem;
+        color: var(--text-muted, #6b7280);
+    }
+    .form-group label i {
+        margin-right: 0.4rem;
+        color: var(--primary, #2563eb);
+    }
+    .alert-danger {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-sm, 6px);
+        border-left: 4px solid #dc2626;
+        margin-bottom: 1.5rem;
+        text-align: left;
+        font-weight: 500;
+    }
+    .login-btn {
+        width: 100%;
+        padding: 0.8rem;
+        font-size: 1rem;
+        border-radius: 50px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        transition: var(--transition, 0.2s ease);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    .login-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+    }
+    .login-card {
+        padding: 2.5rem;
+        text-align: center;
+        background: #ffffff;
+        border-radius: var(--radius-md, 12px);
+        border: 1px solid var(--border, #e5e7eb);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+    .login-icon {
+        font-size: 3.5rem;
+        color: var(--primary, #2563eb);
+        margin-bottom: 0.5rem;
+    }
+    .login-title {
+        margin-top: 0.5rem;
+        margin-bottom: 0.25rem;
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+    .login-subtitle {
+        color: var(--text-muted, #6b7280);
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
+    }
+    .login-footer {
+        margin-top: 1.5rem;
+        font-size: 0.85rem;
+        color: var(--text-muted, #6b7280);
+    }
+    .login-footer i {
+        margin-right: 0.3rem;
+    }
+</style>
+
 <div style="max-width: 420px; margin: 3rem auto;">
-    <div class="card" style="padding: 2.5rem; text-align: center;">
-        <div style="margin-bottom: 2rem;">
-            <i class="fas fa-university" style="font-size: 3.5rem; color: var(--primary);"></i>
-            <h2 style="margin-top: 0.5rem; margin-bottom: 0.25rem; font-weight: 700;">Welcome Back</h2>
-            <p style="color: var(--text-muted); font-size: 0.95rem;">Sign in to manage your academic duties</p>
+    <div class="login-card">
+        <div style="margin-bottom: 0.5rem;">
+            <i class="fas fa-university login-icon"></i>
+            <h2 class="login-title">Welcome Back</h2>
+            <p class="login-subtitle">Sign in to manage your academic duties</p>
         </div>
 
-        <form method="POST">
+        <form method="POST" novalidate>
             {% csrf_token %}
 
             {% if form.errors %}
-                <div class="alert alert-danger" style="margin-bottom: 1.5rem;">
+                <div class="alert-danger">
                     <i class="fas fa-exclamation-triangle"></i> Invalid credentials. Please try again.
                 </div>
             {% endif %}
 
-            <div style="margin-bottom: 1.25rem; text-align: left;">
+            <div class="form-group">
                 <label for="id_username"><i class="fas fa-user"></i> Username / Reg Number</label>
-                <input type="text" name="username" autofocus required id="id_username" placeholder="Enter your username or registration number">
+                <input type="text" name="username" autofocus required id="id_username"
+                       placeholder="Enter your username or registration number"
+                       class="form-control">
             </div>
 
-            <div style="margin-bottom: 1.75rem; text-align: left;">
+            <div class="form-group">
                 <label for="id_password"><i class="fas fa-lock"></i> Password</label>
-                <input type="password" name="password" required id="id_password" placeholder="••••••••">
+                <input type="password" name="password" required id="id_password"
+                       placeholder="••••••••"
+                       class="form-control">
             </div>
 
-            <button type="submit" class="btn" style="width:100%; padding: 0.8rem; font-size:1rem; border-radius:50px;">
+            <button type="submit" class="login-btn">
                 <i class="fas fa-sign-in-alt"></i> Sign In
             </button>
         </form>
-        <p style="margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+
+        <p class="login-footer">
             <i class="fas fa-lock"></i> Secure access for authorized personnel only.
         </p>
     </div>
 </div>
+
 {% endblock %}

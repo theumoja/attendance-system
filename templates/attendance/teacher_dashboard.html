@@ -3,6 +3,24 @@
 <style>
     .chart-container { position: relative; height: 250px; width: 100%; margin-top: 0.5rem; }
     .student-list { max-height: 300px; overflow-y: auto; }
+    .badge-present {
+        display: inline-block;
+        padding: 0.25rem 0.65rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: #10b981;
+        color: #fff;
+    }
+    .badge-absent {
+        display: inline-block;
+        padding: 0.25rem 0.65rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: #ef4444;
+        color: #fff;
+    }
 </style>
 
 <h2><i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard</h2>
@@ -40,7 +58,7 @@
     </div>
 </div>
 
-<!-- Today's Timetable (with full date) -->
+<!-- Active Timetable -->
 <div class="card" style="margin-bottom: 2rem;">
     <h3><i class="fas fa-calendar-day"></i> Active Timetable (Week starting {{ week_start|date:"Y-m-d" }})</h3>
     <div class="table-wrapper">
@@ -73,6 +91,48 @@
             </tbody>
         </table>
     </div>
+</div>
+
+<!-- Recent Attendance Records – grouped by day -->
+<div class="card" style="margin-bottom: 2rem;">
+    <h3><i class="fas fa-history" style="color:var(--primary);"></i> Recent Attendance Records</h3>
+    {% for date, records in grouped_records %}
+        <div style="margin-top: 1.5rem;">
+            <h4 style="background: #f8fafc; padding: 0.5rem 1rem; border-radius: 6px; border-left: 4px solid var(--primary);">
+                <i class="fas fa-calendar-day"></i> {{ date|date:"l, d M Y" }}
+            </h4>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Course Unit</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rec in records %}
+                        <tr>
+                            <td>{{ rec.student.name }}</td>
+                            <td>{{ rec.session.timetable_entry.course_unit.name }}</td>
+                            <td>
+                                {% if rec.status == 'PRESENT' %}
+                                    <span class="badge-present">PRESENT</span>
+                                {% else %}
+                                    <span class="badge-absent">ABSENT</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted">No records for this day.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% empty %}
+        <p class="text-muted" style="padding: 1rem;">No recent attendance records found.</p>
+    {% endfor %}
 </div>
 
 <!-- Student List -->

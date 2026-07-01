@@ -17,9 +17,18 @@ from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from attendance.models import User, TimetableEntry, StudentProfile, CourseUnit, AttendanceRecord
 
+from django.urls import reverse
+import json
+import traceback
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.decorators import login_required
+from attendance.models import User, TimetableEntry, StudentProfile, AttendanceSession, AttendanceRecord
 
+@login_required
 def mark_attendance(request, entry_id):
-    if request.user.role != User.IS_TEACHER:
+    # Authorization check
+    if not hasattr(request.user, 'teacher_profile') or request.user.teacher_profile is None:
         return HttpResponse("Unauthorized", status=403)
 
     entry = get_object_or_404(TimetableEntry, id=entry_id, teacher=request.user.teacher_profile)
@@ -30,7 +39,7 @@ def mark_attendance(request, entry_id):
             data = json.loads(request.body)
             lat = data.get('latitude')
             lng = data.get('longitude')
-            records = data.get('records', {})  # Format: {"student_reg_num": "PRESENT"/"ABSENT"}
+            records = data.get('records', {})
 
             session = AttendanceSession.objects.create(
                 timetable_entry=entry,
@@ -42,12 +51,15 @@ def mark_attendance(request, entry_id):
                 student = StudentProfile.objects.get(reg_number=student_reg)
                 AttendanceRecord.objects.create(session=session, student=student, status=status)
 
-            return JsonResponse({'status': 'success', 'redirect_url': '/dashboard/'})
+            # Redirect to the home view – it will send teachers to the teacher dashboard
+            return JsonResponse({
+                'status': 'success',
+                'redirect_url': reverse('attendance:home')  # or simply '/' if home is at root
+            })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
     return render(request, 'attendance/mark_attendance.html', {'entry': entry, 'students': students})
-
 
 @login_required
 def student_dashboard(request):
@@ -130,7 +142,7 @@ from attendance.models import (
     AttendanceRecord, CourseUnit
 )
 
-
+'''
 @login_required
 def teacher_dashboard(request):
     if request.user.role != User.IS_TEACHER:
@@ -179,8 +191,73 @@ def teacher_dashboard(request):
         'week_start': week_start,
     }
     return render(request, 'attendance/teacher_dashboard.html', context)
+'''
+from itertools import groupby
+from operator import attrgetter
 
+@login_required
+def teacher_dashboard(request):
+    if request.user.role != User.IS_TEACHER:
+        return HttpResponse("Unauthorized", status=403)
+        
+    teacher = request.user.teacher_profile
+    timetable = TimetableEntry.objects.filter(
+        batch__is_active=True, teacher=teacher
+    ).select_related('course_unit', 'batch')
+    
+    course_units = CourseUnit.objects.filter(timetableentry__teacher=teacher).distinct()
+    students = StudentProfile.objects.filter(course__units__in=course_units).distinct()
+    
+    # Stats per unit
+    unit_stats = []
+    for cu in course_units:
+        present = AttendanceRecord.objects.filter(
+            session__timetable_entry__course_unit=cu,
+            session__timetable_entry__teacher=teacher,
+            status='PRESENT'
+        ).count()
+        total = AttendanceRecord.objects.filter(
+            session__timetable_entry__course_unit=cu,
+            session__timetable_entry__teacher=teacher
+        ).count()
+        rate = round((present / total) * 100, 2) if total > 0 else 0
+        unit_stats.append({'name': cu.name, 'rate': rate})
+    
+    # Recent records – group by date
+    recent_records = AttendanceRecord.objects.filter(
+        session__timetable_entry__teacher=teacher
+    ).select_related(
+        'session__timetable_entry__course_unit',
+        'student'
+    ).order_by('-session__date_marked')[:20]  # ordered by date desc
 
+    # Group the records by date
+    grouped_by_date = {}
+    for rec in recent_records:
+        date_key = rec.session.date_marked
+        grouped_by_date.setdefault(date_key, []).append(rec)
+    
+    # Convert to a list of tuples sorted by date descending
+    grouped_records = sorted(grouped_by_date.items(), key=lambda x: x[0], reverse=True)
+
+    unit_names = [u['name'] for u in unit_stats]
+    unit_rates = [u['rate'] for u in unit_stats]
+
+    week_start = None
+    active_batch = timetable.first().batch if timetable else None
+    if active_batch:
+        week_start = active_batch.week_start_date
+
+    context = {
+        'timetable': timetable,
+        'students': students,
+        'course_units': course_units,
+        'unit_names': json.dumps(unit_names),
+        'unit_rates': json.dumps(unit_rates),
+        'week_start': week_start,
+        'grouped_records': grouped_records,  # list of (date, [records])
+    }
+    return render(request, 'attendance/teacher_dashboard.html', context)
 @login_required
 def download_student_report(request):
     if request.user.role != User.IS_STUDENT:
