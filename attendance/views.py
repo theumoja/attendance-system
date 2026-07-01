@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import authenticate, login, update_session_auth_hash
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from attendance.models import User
 
 def custom_login_view(request):
@@ -27,3 +29,19 @@ def redirect_user_by_role(user):
         return redirect('attendance:teacher_dashboard')
     else:
         return redirect('attendance:student_dashboard')
+
+@login_required
+def change_password_view(request):
+    """Allows both authenticated teachers and students to safely change their passwords."""
+    if request.method == 'POST':
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Crucial: Keeps the session valid so the user isn't forced to re-login
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Your password was successfully updated!')
+            return redirect_user_by_role(user)
+    else:
+        form = PasswordChangeForm(user=request.user)
+        
+    return render(request, 'attendance/change_password.html', {'form': form})

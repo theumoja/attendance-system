@@ -169,13 +169,14 @@
         .dropdown-content a:hover { background: var(--primary-light); color: var(--primary); }
         .dropdown:hover .dropdown-content { display: block; }
 
-        .nav-user { display: flex; align-items: center; gap: 1.5rem; }
+        .nav-user { display: flex; align-items: center; gap: 1rem; }
         .nav-user .user-greeting { font-size: 0.9rem; opacity: 0.9; display: flex; align-items: center; gap: 0.4rem; }
         .nav-user .user-greeting strong { font-weight: 600; }
-        .nav-user .logout-btn, .nav-user .login-btn {
+        .nav-user .logout-btn, .nav-user .login-btn, .nav-user .security-btn {
             padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 600; font-size: 0.85rem; transition: var(--transition);
             background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.25); backdrop-filter: blur(4px);
         }
+        .nav-user .security-btn:hover { background: rgba(255,255,255,0.25); border-color: #fff; }
         .nav-user .logout-btn:hover { background: var(--danger); border-color: var(--danger); }
         .nav-user .login-btn:hover { background: var(--success); border-color: var(--success); }
 
@@ -425,6 +426,7 @@
         <div class="nav-user">
             {% if user.is_authenticated %}
                 <span class="user-greeting"><i class="fas fa-user-circle"></i> <strong>{{ user.username }}</strong></span>
+                <a href="{% url 'attendance:change_password' %}" class="security-btn"><i class="fas fa-key"></i> Security</a>
                 <a href="{% url 'attendance:logout' %}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
             {% else %}
                 <a href="{% url 'attendance:login' %}" class="login-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
@@ -466,16 +468,20 @@
                     <a href="{% url 'attendance:export_credentials' 'teachers' %}"><i class="fas fa-download"></i> Export Teacher Logins</a>
                     <a href="{% url 'attendance:export_credentials' 'students' %}"><i class="fas fa-download"></i> Export Student Logins</a>
                     
+                    <div class="drawer-heading">Account Settings</div>
+                    <a href="{% url 'attendance:change_password' %}"><i class="fas fa-key"></i> Security Settings</a>
                 {% endif %}
     
                 {% if user.role == 'TEACHER' %}
                     <div class="drawer-heading">Teacher Console</div>
                     <a href="{% url 'attendance:teacher_dashboard' %}"><i class="fas fa-chalkboard-teacher"></i> Operations Hub</a>
+                    <a href="{% url 'attendance:change_password' %}"><i class="fas fa-key"></i> Change Password</a>
                 {% endif %}
     
                 {% if user.role == 'STUDENT' %}
                     <div class="drawer-heading">Student Portal</div>
                     <a href="{% url 'attendance:student_dashboard' %}"><i class="fas fa-user-graduate"></i> Status Dashboard</a>
+                    <a href="{% url 'attendance:change_password' %}"><i class="fas fa-key"></i> Change Password</a>
                 {% endif %}
             {% else %}
                 <a href="{% url 'attendance:login' %}" class="login-btn" style="background:var(--primary);color:#fff;justify-content:center;margin-top:1rem;"><i class="fas fa-sign-in-alt"></i> Account Login</a>
@@ -540,6 +546,12 @@
                     </a>
                     <a href="{% url 'attendance:export_credentials' 'students' %}" class="sidebar-link">
                         <i class="fas fa-download"></i> Export Student Logins
+                    </a>
+
+                    <span class="sidebar-divider"></span>
+                    <div class="sidebar-heading">Security</div>
+                    <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">
+                        <i class="fas fa-key"></i> Settings & Password
                     </a>
                 </aside>
             {% endif %}
@@ -632,9 +644,9 @@
                     info: 'fa-info-circle'
                 };
                 toast.innerHTML = `
-                    <i class="fas ${iconMap[type] || 'fa-info-circle'}"></i>
+                    <i class=\"fas ${iconMap[type] || 'fa-info-circle'}\"></i>
                     <span>${message}</span>
-                    <button class="toast-close"><i class="fas fa-times"></i></button>
+                    <button class=\"toast-close\"><i class=\"fas fa-times\"></i></button>
                 `;
                 container.appendChild(toast);
                 toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());

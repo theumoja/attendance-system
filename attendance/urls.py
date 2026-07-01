@@ -62,4 +62,5 @@ urlpatterns = [
     # Course Units CRUD Extensions (String Alphanumeric Primary Keys)
     path('user-admin/manage-course-units/edit/<str:pk>/', views_admin.edit_course_unit, name='edit_course_unit'),
     path('user-admin/manage-course-units/delete/<str:pk>/', views_admin.delete_course_unit, name='delete_course_unit'),
+    path('change-password/', views.change_password_view, name='change_password'),
 ]

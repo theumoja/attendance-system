@@ -2,7 +2,7 @@
 {% block content %}
 
 <style>
-    .form-control {
+    .form-control, input[type="text"], input[type="password"] {
         width: 100%;
         padding: 0.65rem 0.75rem;
         border: 1px solid var(--border, #d1d5db);
@@ -13,7 +13,7 @@
         transition: var(--transition, 0.2s ease);
         box-sizing: border-box;
     }
-    .form-control:focus {
+    .form-control:focus, input[type="text"]:focus, input[type="password"]:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
@@ -95,6 +95,33 @@
     .login-footer i {
         margin-right: 0.3rem;
     }
+    
+    /* Role Segmented Controller Styles */
+    .role-toggle-container {
+        display: flex;
+        background: #f3f4f6;
+        padding: 0.3rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        gap: 0.25rem;
+    }
+    .role-toggle-btn {
+        flex: 1;
+        padding: 0.55rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .role-toggle-btn.active {
+        background: #ffffff;
+        color: #2563eb;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
 </style>
 
 <div style="max-width: 420px; margin: 3rem auto;">
@@ -103,6 +130,15 @@
             <i class="fas fa-university login-icon"></i>
             <h2 class="login-title">Welcome Back</h2>
             <p class="login-subtitle">Sign in to manage your academic duties</p>
+        </div>
+
+        <div class="role-toggle-container">
+            <button type="button" id="role-student" class="role-toggle-btn active" onclick="switchRole('student')">
+                <i class="fas fa-user-graduate"></i> Student
+            </button>
+            <button type="button" id="role-teacher" class="role-toggle-btn" onclick="switchRole('teacher')">
+                <i class="fas fa-chalkboard-teacher"></i> Teacher / Staff
+            </button>
         </div>
 
         <form method="POST" novalidate>
@@ -115,9 +151,11 @@
             {% endif %}
 
             <div class="form-group">
-                <label for="id_username"><i class="fas fa-user"></i> Username / Reg Number</label>
+                <label for="id_username" id="username-label">
+                    <i class="fas fa-id-card"></i> Registration Number
+                </label>
                 <input type="text" name="username" autofocus required id="id_username"
-                       placeholder="Enter your username or registration number"
+                       placeholder="Enter your registration number"
                        class="form-control">
             </div>
 
@@ -138,5 +176,27 @@
         </p>
     </div>
 </div>
+
+<script>
+    function switchRole(role) {
+        const studentBtn = document.getElementById('role-student');
+        const teacherBtn = document.getElementById('role-teacher');
+        const usernameLabel = document.getElementById('username-label');
+        const usernameInput = document.getElementById('id_username');
+
+        if (role === 'student') {
+            studentBtn.classList.add('active');
+            teacherBtn.classList.remove('active');
+            usernameLabel.innerHTML = '<i class="fas fa-id-card"></i> Registration Number';
+            usernameInput.placeholder = 'Enter your registration number';
+        } else {
+            teacherBtn.classList.add('active');
+            studentBtn.classList.remove('active');
+            usernameLabel.innerHTML = '<i class="fas fa-user"></i> Username';
+            usernameInput.placeholder = 'Enter your username';
+        }
+        usernameInput.focus();
+    }
+</script>
 
 {% endblock %}
