@@ -64,8 +64,10 @@
                 <tr>
                     <th>Day</th>
                     <th>Time</th>
+                    <th>Department</th>
                     <th>Course Unit</th>
-                    <th>Stream</th> <th>Action</th>
+                    <th>Stream</th> 
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -73,15 +75,17 @@
                 <tr>
                     <td>{{ entry.day }}</td>
                     <td>{{ entry.start_time|time:"H:i" }} – {{ entry.end_time|time:"H:i" }}</td>
+                    <td><span style="color: #64748b; font-weight: 600;">{{ entry.course_unit.course.department.name|default:"Unassigned" }}</span></td>
                     <td>{{ entry.course_unit.name }}</td>
-                    <td>{{ entry.stream.name }}</td> <td>
+                    <td>{{ entry.stream.name }}</td> 
+                    <td>
                         <a href="{% url 'attendance:mark_attendance' entry.id %}" class="btn btn-sm">
                             <i class="fas fa-clipboard-check"></i> Mark
                         </a>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="text-muted">No active sessions.</td></tr>
+                <tr><td colspan="6" class="text-muted">No active sessions.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -100,6 +104,7 @@
                     <thead>
                         <tr>
                             <th>Student</th>
+                            <th>Department</th>
                             <th>Course Unit</th>
                             <th>Status</th>
                         </tr>
@@ -108,6 +113,7 @@
                         {% for rec in records %}
                         <tr>
                             <td>{{ rec.student.name }}</td>
+                            <td><small style="color: #64748b; font-weight: 500;">{{ rec.session.timetable_entry.course_unit.course.department.name|default:"Unassigned" }}</small></td>
                             <td>{{ rec.session.timetable_entry.course_unit.name }}</td>
                             <td>
                                 {% if rec.status == 'PRESENT' %}
@@ -118,7 +124,7 @@
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="3" class="text-muted">No records for this day.</td></tr>
+                        <tr><td colspan="4" class="text-muted">No records for this day.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -137,18 +143,23 @@
                 <tr>
                     <th>Registration</th>
                     <th>Name</th>
+                    <th>Department</th>
                     <th>Course</th>
-                    <th>Stream</th> </tr>
+                    <th>Stream</th> 
+                </tr>
             </thead>
             <tbody>
                 {% for s in students %}
                 <tr>
                     <td>{{ s.reg_number }}</td>
                     <td>{{ s.name }}</td>
+                    <td><span style="font-size: 0.85rem; color:#475569;">{{ s.course.department.name|default:"Unassigned" }}</span></td>
                     <td>{{ s.course.name }}</td>
-                    <td>{{ s.stream.name }}</td> </tr>
+                    <td>{{ s.stream.name }}</td> 
+                </tr>
                 {% empty %}
-                <tr><td colspan="4" class="text-muted">No students assigned.</td></tr> {% endfor %}
+                <tr><td colspan="5" class="text-muted">No students assigned.</td></tr> 
+                {% endfor %}
             </tbody>
         </table>
     </div>

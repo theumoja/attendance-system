@@ -68,4 +68,16 @@ urlpatterns = [
     path('management/streams/edit/<int:stream_id>/', views_admin.edit_stream, name='edit_stream'),
     path('management/streams/delete/<int:stream_id>/', views_admin.delete_stream, name='delete_stream'),
     path('management/streams/bulk-upload/', views_admin.bulk_upload_streams, name='bulk_upload_streams'),
+
+
+    # Department Management Routes
+    path('departments/', views_admin.manage_departments, name='manage_departments'),
+    path('departments/edit/<int:pk>/', views_admin.edit_department, name='edit_department'),
+    path('departments/delete/<int:pk>/', views_admin.delete_department, name='delete_department'),
+    path('departments/reports/', views_admin.admin_report_page, name='admin_report_page'),
+    path('student/download-card/', views_users.download_attendance_card, name='download_attendance_card'),
+
+
+    path('departments/add/', views_admin.add_department, name='add_department'),
+
 ]

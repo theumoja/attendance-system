@@ -3,14 +3,14 @@ from datetime import datetime, timedelta, time
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from attendance.models import (
-    User, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
+    User, Department, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
     TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord
 )
 
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Seeds the database with test data for all features'
+    help = 'Seeds the database with test data for all features including departments'
 
     def handle(self, *args, **options):
         self.stdout.write('Starting seed...')
@@ -29,31 +29,62 @@ class Command(BaseCommand):
         admin_user.save()
         self.stdout.write('Admin created.')
 
-        # ---------- 2. Create Courses and CourseUnits ----------
+        # ---------- 2. Create Departments ----------
+        self.stdout.write('Creating Departments...')
+        dept_cit, _ = Department.objects.get_or_create(name='Computing and Information Technology')
+        dept_biz, _ = Department.objects.get_or_create(name='Business Studies')
+        dept_edu, _ = Department.objects.get_or_create(name='Education')
+        self.stdout.write('Departments created.')
+
+        # ---------- 3. Create Courses and CourseUnits ----------
         courses_data = [
-            {'code': 'CIT', 'name': 'Computer Information Technology', 'units': [
-                ('CIT101', 'Programming Fundamentals'),
-                ('CIT102', 'Database Systems'),
-                ('CIT103', 'Networking'),
-            ]},
-            {'code': 'BBA', 'name': 'Business Administration', 'units': [
-                ('BBA201', 'Financial Accounting'),
-                ('BBA202', 'Marketing Management'),
-                ('BBA203', 'Organizational Behaviour'),
-            ]},
-            {'code': 'EDU', 'name': 'Education', 'units': [
-                ('EDU301', 'Educational Psychology'),
-                ('EDU302', 'Curriculum Development'),
-                ('EDU303', 'Teaching Methods'),
-            ]},
+            {
+                'code': 'CIT', 
+                'name': 'Computer Information Technology', 
+                'department': dept_cit,
+                'units': [
+                    ('CIT101', 'Programming Fundamentals'),
+                    ('CIT102', 'Database Systems'),
+                    ('CIT103', 'Networking'),
+                ]
+            },
+            {
+                'code': 'BBA', 
+                'name': 'Business Administration', 
+                'department': dept_biz,
+                'units': [
+                    ('BBA201', 'Financial Accounting'),
+                    ('BBA202', 'Marketing Management'),
+                    ('BBA203', 'Organizational Behaviour'),
+                ]
+            },
+            {
+                'code': 'EDU', 
+                'name': 'Education', 
+                'department': dept_edu,
+                'units': [
+                    ('EDU301', 'Educational Psychology'),
+                    ('EDU302', 'Curriculum Development'),
+                    ('EDU303', 'Teaching Methods'),
+                ]
+            },
         ]
 
         for course_info in courses_data:
-            course, _ = Course.objects.get_or_create(
+            course, created = Course.objects.get_or_create(
                 code=course_info['code'],
-                defaults={'name': course_info['name']}
+                defaults={
+                    'name': course_info['name'],
+                    'department': course_info['department']
+                }
             )
-            self.stdout.write(f'Course {course.code} created.')
+            if not created:
+                course.name = course_info['name']
+                course.department = course_info['department']
+                course.save()
+                
+            self.stdout.write(f'Course {course.code} assigned to Department: "{course.department.name}".')
+            
             for unit_code, unit_name in course_info['units']:
                 unit, _ = CourseUnit.objects.get_or_create(
                     code=unit_code,
@@ -61,7 +92,7 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(f'  Unit {unit.code} created.')
 
-        # ---------- 3. Create Streams for Courses ----------
+        # ---------- 4. Create Streams for Courses ----------
         unique_streams_data = [
             ('CIT', 'Year 1 CIT A'), ('CIT', 'Year 1 CIT B'), ('CIT', 'Year 1 CIT C'),
             ('CIT', 'Year 2 CIT A'), ('CIT', 'Year 2 CIT B'), ('CIT', 'Year 2 CIT C'),
@@ -81,7 +112,7 @@ class Command(BaseCommand):
             streams_dict[stream_name] = stream_obj
             self.stdout.write(f'  Stream "{stream_name}" registered for Course {course_code}.')
 
-        # ---------- 4. Create Teachers ----------
+        # ---------- 5. Create Teachers ----------
         teacher_list = [
             ('Dr. James Muwonge', 'james.muwonge@utc.ac.ug'),
             ('Prof. Grace Nambi', 'grace.nambi@utc.ac.ug'),
@@ -111,7 +142,7 @@ class Command(BaseCommand):
                 teachers.append(teacher)
                 self.stdout.write(f'Teacher {name} already exists.')
 
-        # ---------- 5. Create Students ----------
+        # ---------- 6. Create Students ----------
         cit_course = Course.objects.get(code='CIT')
         bba_course = Course.objects.get(code='BBA')
         edu_course = Course.objects.get(code='EDU')
@@ -165,7 +196,7 @@ class Command(BaseCommand):
                 students.append(student)
                 self.stdout.write(f'Student {name} ({reg}) already exists.')
 
-        # ---------- 6. Create Timetable Batch and Entries ----------
+        # ---------- 7. Create Timetable Batch and Entries ----------
         today = datetime.now().date()
         days_ahead = 0 - today.weekday()
         if days_ahead < 0:
@@ -238,7 +269,7 @@ class Command(BaseCommand):
             )
             self.stdout.write(f'  Created timetable entry: {day} {start_str}-{end_str} {unit.code} ({stream_name})')
 
-        # ---------- 7. Create Attendance Sessions and Records ----------
+        # ---------- 8. Create Attendance Sessions and Records ----------
         entries = TimetableEntry.objects.filter(batch=batch)
 
         for entry in entries:

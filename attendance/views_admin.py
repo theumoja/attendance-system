@@ -10,21 +10,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-import csv
-import io
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
 from attendance.models import *
 
 
 def generate_secure_password():
     return secrets.token_urlsafe(8)
-
-
-
 
 @login_required
 @transaction.atomic
@@ -114,7 +104,7 @@ def bulk_upload_streams(request):
             stream_data = csv_file.read().decode('utf-8')
             io_string = io.StringIO(stream_data)
             reader = csv.reader(io_string)
-            next(reader, None)  # Safe skip baseline dataset headers
+            next(reader, None)
 
             success_count = 0
             for row in reader:
@@ -135,6 +125,7 @@ def bulk_upload_streams(request):
             messages.error(request, f"Parser exception detected: {str(e)}")
 
     return render(request, 'attendance/bulk_upload_streams.html')
+
 # =========================================================================
 # 1. TEACHERS MANAGEMENT
 # =========================================================================
@@ -148,7 +139,6 @@ def manage_teachers(request):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        # Single Add Teacher
         if action == 'single' or ('name' in request.POST and 'email' in request.POST):
             name = request.POST.get('name', '').strip()
             email = request.POST.get('email', '').strip()
@@ -173,7 +163,6 @@ def manage_teachers(request):
                     messages.warning(request, "A user with this email already exists.")
             return redirect('attendance:manage_teachers')
 
-        # Bulk Upload CSV
         elif action == 'bulk' and request.FILES.get('csv_file'):
             csv_file = request.FILES['csv_file']
             decoded_file = csv_file.read().decode('utf-8')
@@ -259,7 +248,7 @@ def manage_students(request):
             reg_number = (request.POST.get('registration_number') or request.POST.get('reg_number', '')).strip()
             email = request.POST.get('email', '').strip()
             course_code = request.POST.get('course', '').strip() 
-            stream_id = request.POST.get('stream', '').strip() # Added to capture stream assignment from form
+            stream_id = request.POST.get('stream', '').strip()
             
             if name and reg_number and email and course_code:
                 try:
@@ -282,7 +271,7 @@ def manage_students(request):
                         user=user,
                         name=name,
                         course=course,
-                        stream=stream # Assigned relationally
+                        stream=stream
                     )
                     messages.success(request, f"Student {name} successfully registered.")
                 except Course.DoesNotExist:
@@ -296,7 +285,7 @@ def manage_students(request):
 
     students = StudentProfile.objects.select_related('user', 'course', 'stream').all()
     courses = Course.objects.all()
-    streams = Stream.objects.all() # Passed to render dropdown menus in management panel
+    streams = Stream.objects.all()
     
     return render(request, 'attendance/manage_students.html', {
         'students': students,
@@ -357,7 +346,89 @@ def delete_student(request, pk):
 
 
 # =========================================================================
-# 3. COURSES MANAGEMENT
+# NEW. DEPARTMENTS MANAGEMENT
+# =========================================================================
+
+@login_required
+@transaction.atomic
+def manage_departments(request):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    if request.method == 'POST':
+        name = request.POST.get('department_name', '').strip()
+        if name:
+            Department.objects.get_or_create(name=name)
+            messages.success(request, f"Department '{name}' successfully integrated.")
+        else:
+            messages.error(request, "Department name value cannot be blank.")
+        return redirect('attendance:manage_departments')
+
+    departments = Department.objects.all()
+    return render(request, 'attendance/manage_departments.html', {'departments': departments})
+
+@login_required
+def add_department(request):
+    """
+    Handles the structural ingestion and creation of a new academic department.
+    """
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    if request.method == 'POST':
+        dept_name = request.POST.get('department_name', '').strip()
+        
+        if not dept_name:
+            messages.error(request, "Department name cannot be empty.")
+            return redirect('attendance:manage_departments')
+            
+        # Check for duplication framework arrays
+        if Department.objects.filter(name__iexact=dept_name).exists():
+            messages.error(request, f"The department '{dept_name}' already exists.")
+            return redirect('attendance:manage_departments')
+            
+        # Create structural track entry
+        Department.objects.create(name=dept_name)
+        messages.success(request, f"Department '{dept_name}' successfully configured.")
+        
+    return redirect('attendance:manage_departments')
+
+    
+@login_required
+@transaction.atomic
+def edit_department(request, pk):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+    
+    department = get_object_or_404(Department, pk=pk)
+    if request.method == 'POST':
+        name = request.POST.get('department_name', '').strip()
+        if name:
+            department.name = name
+            department.save()
+            messages.success(request, "Department structural identifier modified successfully.")
+            return redirect('attendance:manage_departments')
+        else:
+            messages.error(request, "Department fields cannot be blank.")
+            
+    return render(request, 'attendance/edit_department.html', {'department': department})
+
+
+@login_required
+@transaction.atomic
+def delete_department(request, pk):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+    
+    department = get_object_or_404(Department, pk=pk)
+    name = department.name
+    department.delete()
+    messages.success(request, f"Department '{name}' cleanly detached from application context.")
+    return redirect('attendance:manage_departments')
+
+
+# =========================================================================
+# 3. COURSES MANAGEMENT (UPDATED FOR DEPARTMENTS)
 # =========================================================================
 
 @login_required
@@ -372,8 +443,15 @@ def manage_courses(request):
         if action == 'single' or 'course_code' in request.POST:
             code = (request.POST.get('course_code') or request.POST.get('code', '')).strip()
             name = (request.POST.get('course_name') or request.POST.get('name', '')).strip()
+            department_id = request.POST.get('department', '').strip()
+            
             if code and name:
-                Course.objects.get_or_create(code=code, defaults={'name': name})
+                dept = Department.objects.filter(id=department_id).first() if department_id else None
+                course, created = Course.objects.get_or_create(code=code, defaults={'name': name, 'department': dept})
+                if not created:
+                    course.name = name
+                    course.department = dept
+                    course.save()
                 messages.success(request, f"Course Program '{code}' integrated.")
             return redirect('attendance:manage_courses')
 
@@ -386,12 +464,18 @@ def manage_courses(request):
             for row in reader:
                 if len(row) >= 2:
                     c_code, c_name = row[0].strip(), row[1].strip()
-                    Course.objects.get_or_create(code=c_code, defaults={'name': c_name})
+                    if c_code:  # Safety guard for bulk uploads
+                        Course.objects.get_or_create(code=c_code, defaults={'name': c_name})
             return redirect('attendance:manage_courses')
 
-    courses = Course.objects.all()
-    return render(request, 'attendance/manage_courses.html', {'courses': courses})
-
+    # FIX: Exclude any corrupted empty or null text rows from the stream
+    courses = Course.objects.select_related('department').exclude(code="").exclude(code__isnull=True)
+    departments = Department.objects.all()
+    
+    return render(request, 'attendance/manage_courses.html', {
+        'courses': courses,
+        'departments': departments
+    })
 
 @login_required
 @transaction.atomic
@@ -403,11 +487,22 @@ def edit_course(request, pk):
     if request.method == 'POST':
         course.code = (request.POST.get('course_code') or request.POST.get('code', '')).strip()
         course.name = (request.POST.get('course_name') or request.POST.get('name', '')).strip()
+        department_id = request.POST.get('department', '').strip()
+        
+        if department_id:
+            course.department = Department.objects.filter(id=department_id).first()
+        else:
+            course.department = None
+            
         course.save()
         messages.success(request, "Course program updated successfully.")
         return redirect('attendance:manage_courses')
         
-    return render(request, 'attendance/edit_course.html', {'course': course})
+    departments = Department.objects.all()
+    return render(request, 'attendance/edit_course.html', {
+        'course': course,
+        'departments': departments
+    })
 
 
 @login_required
@@ -465,12 +560,9 @@ def manage_course_units(request):
                         continue
             return redirect('attendance:manage_course_units')
 
-    # Optimization: prefetch parent course properties efficiently up front
     course_units = CourseUnit.objects.select_related('course').all()
     courses = Course.objects.all()
     
-    # Map 'course_code' and 'course_name' explicitly as extra structural dynamic attributes 
-    # to fix the template dropdown mappings without breaking underlying schema definitions
     for c in courses:
         c.course_code = c.code
         c.course_name = c.name
@@ -521,12 +613,6 @@ def delete_course_unit(request, pk):
 # =========================================================================
 # 5. CORE ADMINISTRATIVE DASHBOARD & UTILITIES
 # =========================================================================
-import json
-from django.shortcuts import render
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
-from .models import User, Course, TeacherProfile, StudentProfile, AttendanceRecord, Stream
 
 @login_required
 def admin_dashboard(request):
@@ -562,7 +648,6 @@ def admin_dashboard(request):
     student_present = [s.present for s in student_stats]
     student_absent = [s.total - s.present for s in student_stats]
 
-    # FIXED: Changed Count('studentprofile') to Count('students')
     stream_counts = Stream.objects.select_related('course').annotate(
         student_count=Count('students')
     ).order_by('name')
@@ -589,7 +674,7 @@ def bulk_upload_courses(request):
         csv_file = request.FILES['csv_file']
         decoded_file = csv_file.read().decode('utf-8')
         reader = csv.reader(io.StringIO(decoded_file), delimiter=',')
-        next(reader, None)  # Skip header
+        next(reader, None)
 
         for row in reader:
             if len(row) >= 4:
@@ -638,12 +723,11 @@ def bulk_upload_students(request):
         next(reader, None)
 
         for row in reader:
-            if len(row) >= 5: # Updated from 4 to 5 columns
+            if len(row) >= 5:
                 name, reg_num, email, course_code, stream_name = row[0].strip(), row[1].strip(), row[2].strip(), row[3].strip(), row[4].strip()
                 try:
                     course = Course.objects.get(code=course_code)
                     
-                    # Look up or build the required Stream instance matching the course
                     from attendance.models import Stream
                     stream_obj, _ = Stream.objects.get_or_create(name=stream_name, course=course)
                     
@@ -656,7 +740,6 @@ def bulk_upload_students(request):
                     if created:
                         user.set_password(password)
                         user.save()
-                        # Included stream mapping parameter below
                         StudentProfile.objects.create(user=user, reg_number=reg_num, name=name, course=course, stream=stream_obj)
                 except Course.DoesNotExist:
                     continue
@@ -678,7 +761,7 @@ def upload_timetable(request):
                     TimetableEntry.objects.create(
                         batch=new_batch, day=entry.day, start_time=entry.start_time,
                         end_time=entry.end_time, course_unit=entry.course_unit,
-                        teacher=entry.teacher, stream=entry.stream # Map the Stream relation object cleanly
+                        teacher=entry.teacher, stream=entry.stream
                     )
                 return redirect('attendance:admin_dashboard')
 
@@ -697,7 +780,6 @@ def upload_timetable(request):
                         cu = CourseUnit.objects.get(code=cu_code.strip())
                         teacher = TeacherProfile.objects.get(user__email=teacher_email.strip())
                         
-                        # Dynamically get or build the target stream using the parsed string and course code relation
                         from attendance.models import Stream
                         stream_obj, _ = Stream.objects.get_or_create(
                             name=stream_name.strip(),
@@ -708,7 +790,7 @@ def upload_timetable(request):
                             batch=new_batch, day=day.strip(),
                             start_time=datetime.strptime(start_t.strip(), '%H:%M').time(),
                             end_time=datetime.strptime(end_t.strip(), '%H:%M').time(),
-                            course_unit=cu, teacher=teacher, stream=stream_obj # Saved relationally instead of class_name string
+                            course_unit=cu, teacher=teacher, stream=stream_obj
                         )
                     except (CourseUnit.DoesNotExist, TeacherProfile.DoesNotExist, ValueError):
                         continue
@@ -726,10 +808,8 @@ def download_template(request, template_type):
     elif template_type == 'teachers':
         content = "teachers_name,email\nJohn Doe,john@example.com"
     elif template_type == 'students':
-        # Updated to include stream_name header and example
         content = "students_name,registration_number,email,course,stream_name\nAlice Smith,2024/001,alice@example.com,CIT,Year 1 CIT A"
     elif template_type == 'timetable':
-        # Updated from class_name to stream_name header and example
         content = "day,start_time,end_time,course_unit_code,teacher_email,stream_name\nMON,08:30,10:00,CIT101,james.muwonge@utc.ac.ug,Year 1 CIT A"
     else:
         content = ""
@@ -783,3 +863,37 @@ def export_credentials(request, role_type):
     response['Content-Disposition'] = f'attachment; filename="{role_type}_credentials.xlsx"'
     wb.save(response)
     return response
+
+
+# =========================================================================
+# NEW. ADMINISTRATIVE REPORTS VIEW
+# =========================================================================
+
+
+@login_required
+def admin_report_page(request):
+    # Enforce Admin-only access
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+        
+    departments = Department.objects.all()
+    
+    # Extract structural query constraint parameter directly from backend request arrays
+    selected_dept_id = request.GET.get('filter_dept')
+    
+    # Start with base layout mapping matching all active structural course matrices
+    courses = Course.objects.select_related('department').all()
+    
+    # Execute structural filtering directly inside database processing layers if constraint exists
+    if selected_dept_id:
+        courses = courses.filter(department_id=selected_dept_id)
+        try:
+            selected_dept_id = int(selected_dept_id)  # Standardize type matching for UI template rules
+        except ValueError:
+            selected_dept_id = None
+
+    return render(request, 'attendance/admin_report.html', {
+        'departments': departments,
+        'courses': courses,
+        'selected_dept_id': selected_dept_id
+    })

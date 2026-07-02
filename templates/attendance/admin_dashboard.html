@@ -2,25 +2,24 @@
 {% block content %}
 <style>
     .dashboard-nav {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 1rem;
         margin-bottom: 2rem;
     }
     .dashboard-nav .nav-link {
         background: var(--primary);
         color: #ffffff;
-        padding: 1.8rem 3rem;
+        padding: 1.5rem 2rem;
         border-radius: var(--radius-sm);
         text-decoration: none;
         font-weight: 700;
-        font-size: 1.8rem;
+        font-size: 1.3rem;
         transition: var(--transition);
         border: none;
         display: flex;
         align-items: center;
         gap: 0.8rem;
-        flex: 1 1 auto;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         position: relative;
         overflow: hidden;
@@ -45,7 +44,13 @@
         transform: translateY(-3px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.2);
     }
-    .dashboard-nav .nav-link i { font-size: 2rem; }
+    .dashboard-nav .nav-link i { font-size: 1.6rem; }
+    .dashboard-nav .nav-link.nav-accent {
+        background: #2563eb;
+    }
+    .dashboard-nav .nav-link.nav-accent:hover {
+        background: #1d4ed8;
+    }
 
     .chart-container {
         position: relative;
@@ -158,6 +163,8 @@
 </div>
 
 <div class="dashboard-nav">
+    <a href="{% url 'attendance:manage_departments' %}" class="nav-link nav-accent"><i class="fas fa-building"></i> Manage Departments</a>
+    <a href="{% url 'attendance:admin_report_page' %}" class="nav-link nav-accent"><i class="fas fa-file-invoice"></i> Department Reports</a>
     <a href="{% url 'attendance:bulk_upload_courses' %}" class="nav-link"><i class="fas fa-upload"></i> Upload Courses</a>
     <a href="{% url 'attendance:bulk_upload_teachers' %}" class="nav-link"><i class="fas fa-user-plus"></i> Upload Teachers</a>
     <a href="{% url 'attendance:bulk_upload_students' %}" class="nav-link"><i class="fas fa-user-graduate"></i> Upload Students</a>
@@ -193,6 +200,7 @@
             <thead>
                 <tr>
                     <th>Academic Stream Name / Identifier</th>
+                    <th>Department Context</th>
                     <th>Parent Course Program Framework</th>
                     <th style="text-align: center; width: 180px;">Enrolled Students</th>
                 </tr>
@@ -201,6 +209,7 @@
                 {% for stream in stream_counts %}
                 <tr>
                     <td><code style="font-size:1rem; font-weight:700; color:var(--text-main);">{{ stream.name }}</code></td>
+                    <td><span style="color: #2563eb; font-weight: 600;">{{ stream.course.department.name|default:"Unassigned" }}</span></td>
                     <td style="font-weight: 500; color: #475569;">{{ stream.course.code }} - {{ stream.course.name }}</td>
                     <td style="text-align: center;">
                         <span class="stream-count-badge">
@@ -210,7 +219,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                         <i class="fas fa-users-slash" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
                         No active academic stream enrollment indices configured.
                     </td>

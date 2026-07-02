@@ -38,7 +38,7 @@ def mark_attendance(request, entry_id):
 
     entry = get_object_or_404(TimetableEntry, id=entry_id, teacher=request.user.teacher_profile)
     
-    # MODIFIED: Filters roster strictly to students belonging to this precise stream
+    # Filters roster strictly to students belonging to this precise stream
     students = StudentProfile.objects.filter(stream=entry.stream)
 
     if request.method == 'POST':
@@ -72,7 +72,8 @@ def mark_attendance(request, entry_id):
 @login_required
 def student_dashboard(request):
     """
-    Displays personal attendance summary, historical records, and analytics charts for a student.
+    Displays personal attendance summary, historical records, analytics charts,
+    and handles attendance card clearance thresholds.
     """
     if request.user.role != User.IS_STUDENT:
         return HttpResponse("Unauthorized", status=403)
@@ -80,7 +81,6 @@ def student_dashboard(request):
     student = request.user.student_profile
     records = AttendanceRecord.objects.filter(student=student).select_related('session__timetable_entry__course_unit')
     
-    # Track overall stats alongside course unit stats
     unit_attendance = {}
     total_present = 0
     total_absent = 0
@@ -101,6 +101,11 @@ def student_dashboard(request):
     present_counts = [unit_attendance[u]['present'] for u in unit_names]
     absent_counts = [unit_attendance[u]['absent'] for u in unit_names]
 
+    # --- NEW: Compute overall attendance percentage and threshold clearance ---
+    total_sessions = total_present + total_absent
+    attendance_percentage = round((total_present / total_sessions) * 100, 1) if total_sessions > 0 else 0.0
+    eligible_for_card = attendance_percentage >= 75.0
+
     context = {
         'records': records,
         'total_present': total_present,
@@ -109,9 +114,181 @@ def student_dashboard(request):
         'present_counts': json.dumps(present_counts),
         'absent_counts': json.dumps(absent_counts),
         'student': student,
+        'attendance_percentage': attendance_percentage,  # Passed to UI
+        'eligible_for_card': eligible_for_card,          # Passed to UI
     }
     return render(request, 'attendance/student_dashboard.html', context)
 
+
+import io
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+
+# ReportLab core imports for layout and certificate construction
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+@login_required
+def download_attendance_card(request):
+    """
+    Generates and downloads a beautiful PDF Exam Clearance Certificate
+    ONLY if the student's attendance matches or exceeds 75%.
+    """
+    if request.user.role != User.IS_STUDENT:
+        return HttpResponse("Unauthorized", status=403)
+
+    student = request.user.student_profile
+    records = AttendanceRecord.objects.filter(student=student)
+    
+    total_present = records.filter(status='PRESENT').count()
+    total_sessions = records.count()
+    
+    attendance_percentage = (total_present / total_sessions * 100) if total_sessions > 0 else 0
+    
+    # Strict Security Guard Enforcement
+    if attendance_percentage < 75.0:
+        return HttpResponse("Forbidden: Ineligible for clearance certificate.", status=403)
+
+    # 1. Setup PDF Document Container in Landscape Layout
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        leftMargin=40,
+        rightMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+
+    # 2. Canvas Background Canvas Callback for Visual Certificate Border Styling
+    def draw_certificate_frame(canvas, document):
+        canvas.saveState()
+        
+        # Primary Deep Royal Blue Outer Boundary Frame
+        canvas.setStrokeColor(colors.HexColor("#1e3a8a"))
+        canvas.setLineWidth(5)
+        canvas.rect(25, 25, document.pagesize[0] - 50, document.pagesize[1] - 50)
+        
+        # Secondary Gold/Amber Inner Frame Asset 
+        canvas.setStrokeColor(colors.HexColor("#d97706"))
+        canvas.setLineWidth(1.5)
+        canvas.rect(32, 32, document.pagesize[0] - 64, document.pagesize[1] - 64)
+        
+        # Abstract Geometric Security Watermark/Seal background placeholder
+        canvas.setFillColor(colors.HexColor("#f8fafc"))
+        canvas.restoreState()
+
+    # 3. Typography Styles Setup 
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'CertTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=26,
+        leading=32,
+        textColor=colors.HexColor("#1e3a8a"),
+        alignment=1  # Centered
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'CertSubtitle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=13,
+        leading=16,
+        textColor=colors.HexColor("#b45309"),
+        alignment=1,
+        spaceAfter=25
+    )
+    
+    body_text_style = ParagraphStyle(
+        'CertBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=15,
+        leading=24,
+        textColor=colors.HexColor("#334155"),
+        alignment=1
+    )
+
+    # 4. Assembling Content Story Elements
+    story = []
+    
+    # Header Section
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("UTC BUSHENYI ATTENDANCE HUB", subtitle_style))
+    story.append(Paragraph("CERTIFICATE OF EXAMINATION ELIGIBILITY", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Formatted Verification Statement Text Blocks
+    dept_name = student.course.department.name if student.course.department else "General Academics"
+    statement = (
+        f"This is to officially verify and certify that the student listed below has fulfilled "
+        f"the mandatory institutional structural attendance requirements framework for the academic session."
+    )
+    story.append(Paragraph(statement, body_text_style))
+    story.append(Spacer(1, 25))
+    
+    # 5. Core Student Metadata Grid/Table Block Styling
+    data_label_style = ParagraphStyle('DataLabel', fontName='Helvetica-Bold', fontSize=12, textColor=colors.HexColor("#1e3a8a"))
+    data_val_style = ParagraphStyle('DataVal', fontName='Helvetica', fontSize=12, textColor=colors.HexColor("#1e293b"))
+    rate_val_style = ParagraphStyle('RateVal', fontName='Helvetica-Bold', fontSize=13, textColor=colors.HexColor("#15803d"))
+
+    student_metadata_table_data = [
+        [Paragraph("STUDENT NAME:", data_label_style), Paragraph(student.name.upper(), data_val_style),
+         Paragraph("REGISTRATION NO:", data_label_style), Paragraph(student.reg_number, data_val_style)],
+        [Paragraph("DEPARTMENT:", data_label_style), Paragraph(dept_name, data_val_style),
+         Paragraph("PROGRAM TRACK:", data_label_style), Paragraph(f"{student.course.code} - {student.course.name}", data_val_style)],
+        [Paragraph("ALLOCATED STREAM:", data_label_style), Paragraph(student.stream.name if student.stream else "Unassigned", data_val_style),
+         Paragraph("AGGREGATE ATTENDANCE:", data_label_style), Paragraph(f"{round(attendance_percentage, 1)}% (ELIGIBLE)", rate_val_style)]
+    ]
+    
+    # Render neat custom metrics table layout configuration matrix
+    meta_table = Table(student_metadata_table_data, colWidths=[140, 210, 140, 210])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+        ('TOPPADDING', (0,0), (-1,-1), 12),
+        ('LINEBELOW', (0,0), (-1,-2), 0.5, colors.HexColor("#e2e8f0")), # Soft internal dividing dividers
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 45))
+    
+    # 6. Formal Attestation Signatures Footer Layout block
+    sig_line_style = ParagraphStyle('SigLine', fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#64748b"), alignment=1)
+    sig_title_style = ParagraphStyle('SigTitle', fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#1e3a8a"), alignment=1)
+
+    signatures_layout_matrix = [
+        [Paragraph("", sig_line_style), Paragraph("", sig_line_style), Paragraph("", sig_line_style)],
+        [Paragraph("<b>___________________________</b>", sig_line_style), 
+         Paragraph("<b>[ SYSTEM SEAL ]</b>", sig_title_style), 
+         Paragraph("<b>___________________________</b>", sig_line_style)],
+        [Paragraph("Academic Registrar Office", sig_title_style), 
+         Paragraph("Verified Digitally", sig_line_style), 
+         Paragraph("Date of Issuance", sig_title_style)]
+    ]
+    
+    sig_table = Table(signatures_layout_matrix, colWidths=[250, 200, 250])
+    sig_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ]))
+    story.append(sig_table)
+
+    # Build the document passing the decorative background frame
+    doc.build(story, onFirstPage=draw_certificate_frame)
+    
+    # Return processed file stream safely back to the user
+    pdf_output = buffer.getvalue()
+    buffer.close()
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Exam_Clearance_{student.reg_number}.pdf"'
+    response.write(pdf_output)
+    return response
 
 @login_required
 def teacher_dashboard(request):
@@ -188,9 +365,10 @@ def download_student_report(request):
         return HttpResponse("Unauthorized", status=403)
 
     student = request.user.student_profile
-    # Added select_related for the stream relation to keep query lookup efficient
+    
+    # UPDATED: Prefetches course and its pinned department dynamically to minimize lookup loads
     records = AttendanceRecord.objects.filter(student=student).select_related(
-        'session__timetable_entry__course_unit',
+        'session__timetable_entry__course_unit__course__department',
         'session__timetable_entry__teacher',
         'session__timetable_entry__stream'
     )
@@ -200,8 +378,8 @@ def download_student_report(request):
     ws = wb.active
     ws.title = "Attendance Report"
 
-    # Headers updated to represent the Stream architecture
-    headers = ['Course Unit', 'Date', 'Status', 'Stream', 'Teacher']
+    # UPDATED: Appended 'Department' into the reporting headers framework
+    headers = ['Department', 'Course Unit', 'Date', 'Status', 'Stream', 'Teacher']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = Font(bold=True)
@@ -212,11 +390,17 @@ def download_student_report(request):
     for row_num, rec in enumerate(records, start=2):
         session = rec.session
         entry = session.timetable_entry
-        ws.cell(row=row_num, column=1, value=entry.course_unit.name)
-        ws.cell(row=row_num, column=2, value=session.date_marked.strftime('%Y-%m-%d'))
-        ws.cell(row=row_num, column=3, value=rec.status)
-        ws.cell(row=row_num, column=4, value=entry.stream.name if entry.stream else "") # Changed from entry.class_name
-        ws.cell(row=row_num, column=5, value=entry.teacher.name)
+        
+        # Pull the pinned structural department safely
+        course_dept = entry.course_unit.course.department
+        department_name = course_dept.name if course_dept else "Unassigned"
+        
+        ws.cell(row=row_num, column=1, value=department_name)
+        ws.cell(row=row_num, column=2, value=entry.course_unit.name)
+        ws.cell(row=row_num, column=3, value=session.date_marked.strftime('%Y-%m-%d'))
+        ws.cell(row=row_num, column=4, value=rec.status)
+        ws.cell(row=row_num, column=5, value=entry.stream.name if entry.stream else "")
+        ws.cell(row=row_num, column=6, value=entry.teacher.name)
 
     # Auto-adjust column widths dynamically
     for col in ws.columns:
