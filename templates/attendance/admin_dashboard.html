@@ -118,11 +118,60 @@
         font-weight: 700;
         font-size: 0.9rem;
     }
+
+    /* COMPACT STATISTICAL GRID ENGINE */
+    .compact-stat-grid {
+        display: grid;
+        gap: 0.75rem;
+        margin-bottom: 2.5rem;
+    }
+    
+    /* Large Screens: Single Row Configuration (1 line) */
+    @media (min-width: 768px) {
+        .compact-stat-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+    
+    /* Small Screens: Dual-Row Grid Configuration (2 lines) */
+    @media (max-width: 767px) {
+        .compact-stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    /* Global Card Downscaling Overrides */
+    .compact-stat-grid .stat-card {
+        padding: 0.6rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        min-height: auto;
+    }
+    .compact-stat-grid .stat-card .icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.95rem;
+        flex-shrink: 0;
+        margin: 0;
+    }
+    .compact-stat-grid .stat-card .info h4 {
+        font-size: 0.75rem;
+        margin: 0 0 0.1rem 0;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+    .compact-stat-grid .stat-card .number {
+        font-size: 1.15rem;
+        font-weight: 700;
+        line-height: 1.1;
+    }
 </style>
 
 <h2><i class="fas fa-chart-pie"></i> System Management Dashboard</h2>
 
-<div class="grid-4" style="margin-bottom: 2.5rem;">
+<!-- Optimized Compact Metric Tracker Matrix -->
+<div class="compact-stat-grid">
     <div class="stat-card">
         <div class="icon"><i class="fas fa-book-open"></i></div>
         <div class="info">
@@ -161,8 +210,6 @@
         <i class="fas fa-download"></i> Export Student Credentials (.xlsx)
     </a>
 </div>
-
-
 
 <div class="grid-2">
     <div class="card card-chart">

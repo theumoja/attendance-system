@@ -1,183 +1,224 @@
 {% extends 'attendance/base.html' %}
 {% block content %}
 <style>
-    .chart-container { position: relative; height: 250px; width: 100%; margin-top: 0.5rem; }
-    .student-list { max-height: 300px; overflow-y: auto; }
-    .badge-present {
-        display: inline-block;
-        padding: 0.25rem 0.65rem;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        background: #10b981;
-        color: #fff;
+    .chart-container-box { position: relative; height: 260px; width: 100%; margin-top: 0.5rem; }
+    .student-list-box { max-height: 350px; overflow-y: auto; }
+    
+    /* Activity Feed Components */
+    .activity-timeline { margin-top: 1rem; position: relative; padding-left: 1.5rem; border-left: 2px solid var(--border); }
+    .activity-item { position: relative; margin-bottom: 1.5rem; }
+    .activity-item::before {
+        content: ''; position: absolute; left: calc(-1.5rem - 6px); top: 4px;
+        width: 10px; height: 10px; border-radius: 50%; background: var(--primary);
+        border: 2px solid var(--surface);
     }
-    .badge-absent {
-        display: inline-block;
-        padding: 0.25rem 0.65rem;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        background: #ef4444;
-        color: #fff;
+    .activity-time { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; float: right; }
+    
+    /* Control Action Modules */
+    .quick-actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .action-tile {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 1.25rem 0.5rem; background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; text-decoration: none; color: var(--text-main); font-weight: 500;
+        font-size: 0.85rem; text-align: center; transition: var(--transition); transition-property: transform, border-color, box-shadow;
     }
+    .action-tile i { font-size: 1.5rem; color: var(--primary); margin-bottom: 0.5rem; }
+    .action-tile:hover { transform: translateY(-3px); border-color: var(--secondary); box-shadow: var(--shadow); color: var(--secondary); }
+
+    /* Custom Badges */
+    .badge-present { padding: 0.25rem 0.65rem; border-radius: 50px; font-size: 0.75rem; font-weight: 700; background: #10b981; color: #fff; display: inline-block; }
+    .badge-absent { padding: 0.25rem 0.65rem; border-radius: 50px; font-size: 0.75rem; font-weight: 700; background: #ef4444; color: #fff; display: inline-block; }
 </style>
 
-<h2><i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard</h2>
+<div style="margin-bottom: 1.5rem;">
+    <h2><i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard</h2>
+    <p style="color: var(--text-muted); font-size: 0.95rem;">Track structural class assignments, analyze student execution vectors, and submit log registers.</p>
+</div>
 
-<div class="grid-3" style="margin-bottom: 2rem;">
+<!-- Core Summary Metrics Matrix -->
+<div class="grid-4" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
     <div class="stat-card">
-        <div class="icon"><i class="fas fa-clock"></i></div>
+        <div class="icon" style="background: var(--primary-light); color: var(--primary);"><i class="fas fa-users"></i></div>
+        <div class="info">
+            <h4>Total Students</h4>
+            <div class="number">{{ total_students_count }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="icon" style="background: #fef3c7; color: #d97706;"><i class="fas fa-graduation-cap"></i></div>
+        <div class="info">
+            <h4>Active Classes</h4>
+            <div class="number">{{ active_classes_count }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="icon" style="background: #e0f2fe; color: #0284c7;"><i class="fas fa-clock"></i></div>
         <div class="info">
             <h4>Today's Sessions</h4>
-            <div class="number">{{ timetable|length }}</div>
+            <div class="number">{{ todays_sessions_count }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <div class="icon"><i class="fas fa-users"></i></div>
+        <div class="icon" style="background: var(--success-light); color: var(--success);"><i class="fas fa-check-circle"></i></div>
         <div class="info">
-            <h4>Your Students</h4>
-            <div class="number">{{ students|length }}</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="icon"><i class="fas fa-book"></i></div>
-        <div class="info">
-            <h4>Course Units</h4>
-            <div class="number">{{ course_units|length }}</div>
+            <h4>Attendance Rate</h4>
+            <div class="number">{{ global_attendance_rate }}%</div>
         </div>
     </div>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3><i class="fas fa-chart-bar" style="color:var(--secondary);"></i> Attendance Rate by Course Unit</h3>
-    <div class="chart-container">
-        <canvas id="teacherBarChart"></canvas>
+<!-- Visual Data Analytics Panels -->
+<div class="grid-2" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
+    <!-- Weekly Analytics Trend Bar Chart -->
+    <div class="card">
+        <h3><i class="fas fa-chart-bar" style="color: var(--secondary); margin-right: 0.5rem;"></i> Weekly Attendance Trend</h3>
+        <div class="chart-container-box">
+            <canvas id="weeklyTrendChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Distribution Breakdown Component -->
+    <div class="card">
+        <h3><i class="fas fa-chart-pie" style="color: var(--secondary); margin-right: 0.5rem;"></i> Attendance Distribution</h3>
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; height: 240px; gap: 1rem;">
+            <div>
+                <canvas id="distributionPieChart"></canvas>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
+                    <span><i class="fas fa-circle" style="color:#10b981;"></i> Present</span><strong>{{ distribution.present_pct }}%</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
+                    <span><i class="fas fa-circle" style="color:#ef4444;"></i> Absent</span><strong>{{ distribution.absent_pct }}%</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
+                    <span><i class="fas fa-circle" style="color:#f59e0b;"></i> Late</span><strong>{{ distribution.late_pct }}%</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
+                    <span><i class="fas fa-circle" style="color:#6b7280;"></i> Excused</span><strong>{{ distribution.excused_pct }}%</strong>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3><i class="fas fa-calendar-day"></i> Active Timetable (Week starting {{ week_start|date:"Y-m-d" }})</h3>
+<!-- Content Split Layout Matrix -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; align-items: start;">
+    <!-- Recent Activity Component Log Stack -->
+    <div class="card" style="height: 100%;">
+        <h3><i class="fas fa-history" style="color: var(--primary); margin-right: 0.5rem;"></i> Recent Activity</h3>
+        <div class="activity-timeline">
+            {% for log in recent_activity_feed %}
+                <div class="activity-item">
+                    <span class="activity-time">{{ log.time }}</span>
+                    <h4 style="margin: 0 0 0.25rem 0; color: var(--text-main);">Attendance recorded for {{ log.stream_name }}</h4>
+                    <p style="margin: 0; color: var(--text-muted); font-size: 0.85rem;">
+                        <span style="color: var(--success); font-weight:600;">{{ log.present }} present</span>, 
+                        <span style="color: var(--danger); font-weight:600;">{{ log.absent }} absent</span>
+                    </p>
+                </div>
+            {% empty %}
+                <p style="color: var(--text-muted); padding: 1rem 0;">No sessions recorded recently in the system.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Quick Controls Sub-Navigation Hub -->
+    <div class="card" style="height: 100%;">
+        <h3><i class="fas fa-bolt" style="color: #d97706; margin-right: 0.5rem;"></i> Quick Actions</h3>
+        <div class="quick-actions-grid">
+            <!-- Dynamically falls back to standard framework entry target templates -->
+            <a href="#timetable-section" class="action-tile">
+                <i class="fas fa-clipboard-check"></i>
+                <span>Mark Attendance</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Active Scheduled Timetable Container -->
+<div id="timetable-section" class="card" style="margin-bottom: 2rem;">
+    <h3><i class="fas fa-calendar-day" style="color: var(--secondary); margin-right: 0.5rem;"></i> Active Timetable (Week starting {{ week_start|date:"Y-m-d"|default:"Active Matrix" }})</h3>
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
                     <th>Day</th>
-                    <th>Time</th>
-                    <th>Department</th>
+                    <th>Time Scope</th>
+                    <th>Department Context</th>
                     <th>Course Unit</th>
-                    <th>Stream</th> 
+                    <th>Class Stream</th> 
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for entry in timetable %}
                 <tr>
-                    <td>{{ entry.day }}</td>
-                    <td>{{ entry.start_time|time:"H:i" }} – {{ entry.end_time|time:"H:i" }}</td>
-                    <td><span style="color: #64748b; font-weight: 600;">{{ entry.course_unit.course.department.name|default:"Unassigned" }}</span></td>
+                    <td style="font-weight: 600;">{{ entry.get_day_display|default:entry.day }}</td>
+                    <td style="font-family: monospace;">{{ entry.start_time|time:"H:i" }} – {{ entry.end_time|time:"H:i" }}</td>
+                    <td><span style="color: #64748b; font-weight: 600; font-size: 0.85rem;">{{ entry.course_unit.course.department.name|default:"Unassigned Department" }}</span></td>
                     <td>{{ entry.course_unit.name }}</td>
-                    <td>{{ entry.stream.name }}</td> 
+                    <td><span style="background: #f1f5f9; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ entry.stream.name }}</span></td> 
                     <td>
                         <a href="{% url 'attendance:mark_attendance' entry.id %}" class="btn btn-sm">
-                            <i class="fas fa-clipboard-check"></i> Mark
+                            <i class="fas fa-clipboard-check"></i> Mark Register
                         </a>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-muted">No active sessions.</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No operational scheduled configurations found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3><i class="fas fa-history" style="color:var(--primary);"></i> Recent Attendance Records</h3>
-    {% for date, records in grouped_records %}
-        <div style="margin-top: 1.5rem;">
-            <h4 style="background: #f8fafc; padding: 0.5rem 1rem; border-radius: 6px; border-left: 4px solid var(--primary);">
-                <i class="fas fa-calendar-day"></i> {{ date|date:"l, d M Y" }}
-            </h4>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Student</th>
-                            <th>Department</th>
-                            <th>Course Unit</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for rec in records %}
-                        <tr>
-                            <td>{{ rec.student.name }}</td>
-                            <td><small style="color: #64748b; font-weight: 500;">{{ rec.session.timetable_entry.course_unit.course.department.name|default:"Unassigned" }}</small></td>
-                            <td>{{ rec.session.timetable_entry.course_unit.name }}</td>
-                            <td>
-                                {% if rec.status == 'PRESENT' %}
-                                    <span class="badge-present">PRESENT</span>
-                                {% else %}
-                                    <span class="badge-absent">ABSENT</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-muted">No records for this day.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    {% empty %}
-        <p class="text-muted" style="padding: 1rem;">No recent attendance records found.</p>
-    {% endfor %}
-</div>
-
+<!-- Assigned Student Registry Base Panel -->
 <div class="card">
-    <h3><i class="fas fa-users"></i> Your Students</h3>
-    <div class="student-list table-wrapper">
+    <h3><i class="fas fa-users" style="color: var(--primary); margin-right: 0.5rem;"></i> Assigned Student Roster</h3>
+    <div class="student-list-box table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th>Registration</th>
-                    <th>Name</th>
-                    <th>Department</th>
-                    <th>Course</th>
-                    <th>Stream</th> 
+                    <th>Registration Identification</th>
+                    <th>Full Name</th>
+                    <th>Department Scope</th>
+                    <th>Academic Program Track</th>
+                    <th>Class Stream</th> 
                 </tr>
             </thead>
             <tbody>
                 {% for s in students %}
                 <tr>
-                    <td>{{ s.reg_number }}</td>
-                    <td>{{ s.name }}</td>
-                    <td><span style="font-size: 0.85rem; color:#475569;">{{ s.course.department.name|default:"Unassigned" }}</span></td>
+                    <td style="font-family: monospace; font-size: 0.85rem;">{{ s.reg_number }}</td>
+                    <td style="font-weight: 600;">{{ s.name }}</td>
+                    <td><span style="font-size: 0.85rem; color:#475569;">{{ s.course.department.name|default:"General Academics" }}</span></td>
                     <td>{{ s.course.name }}</td>
-                    <td>{{ s.stream.name }}</td> 
+                    <td><span style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">{{ s.stream.name }}</span></td> 
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="text-muted">No students assigned.</td></tr> 
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No students assigned to your course-stream map.</td></tr> 
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
+<!-- Initialization Scripts for the Canvas Charts -->
 <script>
     window.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('teacherBarChart').getContext('2d');
-        new Chart(ctx, {
+        // 1. Weekly Attendance Trend Chart (Bar Mapping Matrix)
+        const ctxTrend = document.getElementById('weeklyTrendChart').getContext('2d');
+        new Chart(ctxTrend, {
             type: 'bar',
             data: {
-                labels: {{ unit_names|safe }},
+                labels: {{ weekly_trend_labels|safe }},
                 datasets: [{
-                    label: 'Attendance Rate (%)',
-                    data: {{ unit_rates|safe }},
+                    label: 'Attendance Performance Rate (%)',
+                    data: {{ weekly_trend_rates|safe }},
                     backgroundColor: '#2c6e6b',
                     borderRadius: 6,
-                    barPercentage: 0.6
+                    maxBarThickness: 35
                 }]
             },
             options: {
@@ -188,6 +229,34 @@
                     x: { grid: { display: false } }
                 },
                 plugins: { legend: { display: false } }
+            }
+        });
+
+        // 2. Attendance Distribution Chart (Doughnut Configuration Engine)
+        const ctxPie = document.getElementById('distributionPieChart').getContext('2d');
+        new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: ['Present', 'Absent', 'Late', 'Excused'],
+                datasets: [{
+                    data: [
+                        {{ distribution.present_pct }}, 
+                        {{ distribution.absent_pct }}, 
+                        {{ distribution.late_pct }}, 
+                        {{ distribution.excused_pct }}
+                    ],
+                    backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                cutout: '70%'
             }
         });
     });
