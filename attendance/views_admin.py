@@ -1052,6 +1052,7 @@ from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 import json
+import csv
 from attendance.models import User, Stream, AttendanceRecord, AttendanceSession, StudentProfile
 
 @login_required
@@ -1060,28 +1061,10 @@ def analytics_dashboard(request):
     if request.user.role != User.IS_ADMIN:
         return HttpResponse("Unauthorized", status=403)
 
-
-    # Place this code inside views.py right after applying scoping filters:
-    if request.GET.get('export') == 'csv':
-        import csv
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="attendance_report.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow(['Student Name', 'Reg Number', 'Status', 'Date'])
-        
-        # Pull transactional scope data
-        for record in records.select_related('student', 'session'):
-            writer.writerow([
-                record.student.name, 
-                record.student.reg_number, 
-                record.status, 
-                record.session.date_marked.strftime('%Y-%m-%d') if record.session.date_marked else 'N/A'
-            ])
-        return response
     # Extract optional filter parameters from template request scopes
     selected_stream_id = request.GET.get('stream')
     
+    # 1. INITIALIZE VARIABLES FIRST (Fixes UnboundLocalError)
     # Base query sets targeting core transactional datasets
     records = AttendanceRecord.objects.all()
     sessions = AttendanceSession.objects.select_related(
@@ -1089,12 +1072,36 @@ def analytics_dashboard(request):
         'timetable_entry__stream'
     ).order_by('-date_marked')
     
-    # Dynamic application of scoping filters if requested by the end-user
+    # 2. APPLY SCOPING FILTERS dynamically if requested
     if selected_stream_id and selected_stream_id != 'all':
         records = records.filter(student__stream_id=selected_stream_id)
         sessions = sessions.filter(timetable_entry__stream_id=selected_stream_id)
 
-    # 1. Compute Live Summary Statistics Metrics Matrix
+    # 3. INTERCEPT CSV EXPORT REQUEST
+    # Now that 'records' exists and is filtered, we can safely export it!
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="attendance_report.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Reg Number', 'Class/Stream', 'Status', 'Date'])
+        
+        # NOTE: If your relation to AttendanceSession is named something else 
+        # (e.g. 'attendance_session'), change 'session' below to match your models.py
+        for record in records.select_related('student__stream', 'session'):
+            date_val = record.session.date_marked.strftime('%Y-%m-%d') if hasattr(record, 'session') and record.session.date_marked else 'N/A'
+            stream_name = record.student.stream.name if record.student.stream else 'N/A'
+            
+            writer.writerow([
+                record.student.name, 
+                record.student.reg_number,
+                stream_name,
+                record.status, 
+                date_val
+            ])
+        return response
+
+    # 4. Compute Live Summary Statistics Metrics Matrix
     total_records = records.count()
     present_count = records.filter(status='PRESENT').count()
     absent_count = records.filter(status='ABSENT').count()
@@ -1103,10 +1110,9 @@ def analytics_dashboard(request):
         'total_records': total_records,
         'present_rate': round((present_count / total_records) * 100, 1) if total_records > 0 else 0,
         'absent_rate': round((absent_count / total_records) * 100, 1) if total_records > 0 else 0,
-        'late_rate': 0  # Maintained at 0 since model STATUS_CHOICES only specifies PRESENT/ABSENT
     }
 
-    # 2. Compile Lecturer Location Audit Log Dataset Dynamically
+    # 5. Compile Lecturer Location Audit Log Dataset Dynamically
     audit_logs = []
     for session in sessions[:20]:
         t_entry = session.timetable_entry
@@ -1122,7 +1128,7 @@ def analytics_dashboard(request):
             "verified": has_coords  
         })
 
-    # 3. Pull Top Present & Absent Students Metrics Arrays via Database Annotations (Top 20)
+    # 6. Pull Top Present & Absent Students Metrics Arrays via Database Annotations (Top 20)
     students = StudentProfile.objects.select_related('stream').annotate(
         total_rec=Count('attendancerecord'),
         present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT')),
@@ -1146,16 +1152,13 @@ def analytics_dashboard(request):
     top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)[:20]
     top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)[:20]
 
-    # 4. Generate Teacher Attendance Submission Compliance Metrics Report
-    # Safely obtain reference model paths across dynamic app configurations
+    # 7. Generate Teacher Attendance Submission Compliance Metrics Report
     TimetableEntry = AttendanceSession._meta.get_field('timetable_entry').related_model
     total_system_sessions = sessions.count()
 
-    # Aggregate total dynamic submitted sessions grouped by unique teachers
     teacher_counts = sessions.values('timetable_entry__teacher_id').annotate(count=Count('id'))
     counts_map = {item['timetable_entry__teacher_id']: item['count'] for item in teacher_counts if item['timetable_entry__teacher_id']}
 
-    # Retrieve scheduled operational scope criteria
     timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
     if selected_stream_id and selected_stream_id != 'all':
         timetable_entries = timetable_entries.filter(stream_id=selected_stream_id)
@@ -1169,7 +1172,6 @@ def analytics_dashboard(request):
             email = entry.teacher.user.email if entry.teacher.user else "—"
             submitted = counts_map.get(entry.teacher.id, 0)
             
-            # Submission rate representing total active system share matching the selected filters scope
             rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
             
             teachers_raw.append({
@@ -1181,7 +1183,7 @@ def analytics_dashboard(request):
     top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
     top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
 
-    # 5. Generate Aggregated Payload Engines for ChartJS
+    # 8. Generate Aggregated Payload Engines for ChartJS
     chart_dist_data = [present_count, absent_count]
     
     streams_data = Stream.objects.annotate(
