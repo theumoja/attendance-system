@@ -79,5 +79,5 @@ urlpatterns = [
 
 
     path('departments/add/', views_admin.add_department, name='add_department'),
-
+    path('analytics/', views_admin.analytics_dashboard, name='analytics_dashboard'),
 ]

@@ -1,0 +1,388 @@
+{% extends "attendance/base.html" %}
+
+{% block content %}
+<style>
+    .analytics-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .filter-select {
+        padding: 0.6rem 1.2rem;
+        border-radius: 50px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        font-family: var(--font);
+        font-size: 0.9rem;
+        color: var(--text-main);
+        outline: none;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+    .filter-select:focus {
+        border-color: var(--secondary);
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+    }
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .badge-success {
+        background: var(--success-light);
+        color: #065f46;
+    }
+    .badge-danger {
+        background: var(--danger-light);
+        color: #991b1b;
+    }
+    .badge-warning {
+        background: var(--warning-light);
+        color: #92400e;
+    }
+    .chart-box {
+        min-height: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .section-title {
+        margin: 3rem 0 1.5rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--border);
+        color: var(--text-main);
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .table-container-scroller {
+        max-height: 480px;
+        overflow-y: auto;
+    }
+</style>
+
+<div class="analytics-container">
+    <!-- Header Block -->
+    <div style="margin-bottom: 1.5rem;">
+        <h2><i class="fas fa-chart-line"></i> Reports & Analytics</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Analyze real-time attendance patterns, student performance logs, and teacher submission compliance schedules.</p>
+    </div>
+
+    <!-- Dynamic Filters & Action Bar -->
+    <div class="analytics-toolbar">
+        <div class="filter-group">
+            <label for="classFilter" style="font-weight: 500; font-size: 0.9rem; color: var(--text-muted);">Scope Data:</label>
+            <select id="classFilter" class="filter-select" onchange="location = this.value;">
+                <option value="?stream=all">All Academic Streams</option>
+                {% for stream in streams %}
+                    <option value="?stream={{ stream.id }}" {% if selected_stream == stream.id|stringformat:"i" %}selected{% endif %}>
+                        {{ stream.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-outline" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+            <!-- Dynamic Export Route passing active stream criteria -->
+            <a href="?export=csv{% if selected_stream %}&stream={{ selected_stream }}{% endif %}" class="btn">
+                <i class="fas fa-file-csv"></i> Export CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Live Metrics Breakdown Cards Component -->
+    <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 2rem; gap: 1rem; display: grid;">
+        <div class="stat-card">
+            <div class="icon" style="background: var(--primary-light); color: var(--primary);"><i class="fas fa-folder-open"></i></div>
+            <div class="info">
+                <h4>Total Records</h4>
+                <div class="number">{{ stats.total_records }}</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="background: var(--success-light); color: var(--success);"><i class="fas fa-check-circle"></i></div>
+            <div class="info">
+                <h4>Present Rate</h4>
+                <div class="number">{{ stats.present_rate }}%</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="background: var(--danger-light); color: var(--danger);"><i class="fas fa-times-circle"></i></div>
+            <div class="info">
+                <h4>Absent Rate</h4>
+                <div class="number">{{ stats.absent_rate }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visualization Data Panels -->
+    <div class="grid-2" style="margin-bottom: 2.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
+        <div class="card">
+            <h3><i class="fas fa-chart-pie" style="color: var(--secondary); margin-right: 0.5rem;"></i> Attendance Distribution</h3>
+            <div class="chart-box">
+                <canvas id="distributionChart"></canvas>
+            </div>
+        </div>
+        <div class="card">
+            <h3><i class="fas fa-chart-bar" style="color: var(--secondary); margin-right: 0.5rem;"></i> Attendance by Stream</h3>
+            <div class="chart-box">
+                <canvas id="classChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 1: STUDENT PERFORMANCE MATRIX -->
+    <div class="section-title">
+        <i class="fas fa-user-graduate" style="color: var(--primary);"></i> Student Performance Metrics (Top 20 Analytics)
+    </div>
+    
+    <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+        <!-- Top 20 Present Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--success);"><i class="fas fa-star"></i> Top 20 Present Students</h3>
+            <div class="table-wrapper table-container-scroller">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Reg No.</th>
+                            <th>Stream</th>
+                            <th>Attendance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in top_present_students %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ student.name }}</td>
+                            <td style="font-family: monospace; font-size: 0.85rem;">{{ student.reg }}</td>
+                            <td><span class="badge" style="background:#f1f5f9; color:var(--text-main);">{{ student.class }}</span></td>
+                            <td><strong style="color: var(--success);">{{ student.present_rate }}</strong></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No logs available.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top 20 Absent Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--danger);"><i class="fas fa-heart-broken"></i> Top 20 Absent Students</h3>
+            <div class="table-wrapper table-container-scroller">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Reg No.</th>
+                            <th>Stream</th>
+                            <th>Absent Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in top_absent_students %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ student.name }}</td>
+                            <td style="font-family: monospace; font-size: 0.85rem;">{{ student.reg }}</td>
+                            <td><span class="badge" style="background:#f1f5f9; color:var(--text-main);">{{ student.class }}</span></td>
+                            <td><strong style="color: var(--danger);">{{ student.absent_rate }}</strong></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No logs available.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 2: TEACHER COMPLIANCE SUBMISSIONS REPORT -->
+    <div class="section-title">
+        <i class="fas fa-chalkboard-teacher" style="color: var(--secondary);"></i> Lecturer Attendance Submission Compliance Report
+    </div>
+
+    <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+        <!-- Top Submitted Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--primary);"><i class="fas fa-check-double"></i> Most Active Submissions (Top 20)</h3>
+            <div class="table-wrapper table-container-scroller">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Lecturer Email</th>
+                            <th>Sessions Logged</th>
+                            <th>System Activity Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teacher in top_submitted_teachers %}
+                        <tr>
+                            <td style="font-weight: 500; font-size:0.9rem;">{{ teacher.email }}</td>
+                            <td style="font-weight: 600; text-align: center;">{{ teacher.submitted }}</td>
+                            <td><span class="badge badge-success">{{ teacher.rate }}</span></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 2rem;">No structural schedules tracked.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Unsubmitted / Least Submitted Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--warning);"><i class="fas fa-exclamation-circle"></i> Least Active / Unsubmitted (Top 20)</h3>
+            <div class="table-wrapper table-container-scroller">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Lecturer Email</th>
+                            <th>Sessions Logged</th>
+                            <th>System Activity Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teacher in top_unsubmitted_teachers %}
+                        <tr>
+                            <td style="font-weight: 500; font-size:0.9rem;">{{ teacher.email }}</td>
+                            <td style="font-weight: 600; text-align: center;">{{ teacher.submitted }}</td>
+                            <td>
+                                {% if teacher.submitted == 0 %}
+                                    <span class="badge badge-danger">0.0% (No Submissions)</span>
+                                {% else %}
+                                    <span class="badge badge-warning">{{ teacher.rate }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 2rem;">No structural schedules tracked.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 3: LOCATION GEOSPATIAL LOGS -->
+    <div class="section-title">
+        <i class="fas fa-fingerprint" style="color: var(--text-main);"></i> System Location Security & Audit Logs
+    </div>
+
+    <!-- Lecturer Location Audit Log Table Container -->
+    <div class="card" style="margin-bottom: 2.5rem;">
+        <h3 style="margin-bottom: 1.25rem;"><i class="fas fa-map-marker-alt" style="color: var(--secondary); margin-right: 0.5rem;"></i> Lecturer Location Audit Log</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Class Stream</th>
+                        <th>Lecturer Email</th>
+                        <th>GPS Coordinates</th>
+                        <th>IP Address</th>
+                        <th>Verification Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in audit_logs %}
+                    <tr>
+                        <td style="font-weight: 500; white-space: nowrap;">{{ log.date }}</td>
+                        <td><span style="background: #f1f5f9; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ log.class }}</span></td>
+                        <td style="color: var(--text-muted); font-size: 0.9rem;">{{ log.lecturer }}</td>
+                        <td style="font-family: monospace; font-size: 0.85rem;">{{ log.location }}</td>
+                        <td style="font-family: monospace; color: var(--text-muted);">{{ log.ip }}</td>
+                        <td>
+                            {% if log.verified %}
+                                <span class="badge badge-success"><i class="fas fa-shield-alt"></i> Verified GPS</span>
+                            {% else %}
+                                <span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> Unverified</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No lecturer sessions logged in this scope.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Generation Engine Scripts -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // 1. Chart Data Distribution Configs (Doughnut System)
+        const ctxDist = document.getElementById('distributionChart').getContext('2d');
+        new Chart(ctxDist, {
+            type: 'doughnut',
+            data: {
+                labels: ['Present', 'Absent'],
+                datasets: [{
+                    data: {{ chart_dist_data|safe }},
+                    backgroundColor: ['#10b981', '#ef4444'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Inter' } } }
+                }
+            }
+        });
+
+        // 2. Stream Statistics Config Map (Bar System Matrix)
+        const ctxClass = document.getElementById('classChart').getContext('2d');
+        new Chart(ctxClass, {
+            type: 'bar',
+            data: {
+                labels: {{ stream_labels|safe }},
+                datasets: [{
+                    label: 'Attendance Rate (%)',
+                    data: {{ stream_rates|safe }},
+                    backgroundColor: '#2c6e6b',
+                    borderRadius: 6,
+                    maxBarThickness: 40
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: '#e2e8f0' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

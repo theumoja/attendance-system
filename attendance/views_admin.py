@@ -897,3 +897,312 @@ def admin_report_page(request):
         'courses': courses,
         'selected_dept_id': selected_dept_id
     })
+
+'''
+from django.shortcuts import render
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+import json
+from attendance.models import User, Stream, AttendanceRecord, AttendanceSession, StudentProfile
+
+@login_required
+def analytics_dashboard(request):
+
+    # Enforce strict Admin-only access rule matrix
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    # Extract optional filter parameters from template request scopes
+    selected_stream_id = request.GET.get('stream')
+    
+    # Base query sets targeting core transactional datasets
+    records = AttendanceRecord.objects.all()
+    sessions = AttendanceSession.objects.select_related(
+        'timetable_entry__teacher__user', 
+        'timetable_entry__stream'
+    ).order_by('-date_marked')
+    
+    # Dynamic application of scoping filters if requested by the end-user
+    if selected_stream_id and selected_stream_id != 'all':
+        records = records.filter(student__stream_id=selected_stream_id)
+        sessions = sessions.filter(timetable_entry__stream_id=selected_stream_id)
+
+    # 1. Compute Live Summary Statistics Metrics Matrix
+    total_records = records.count()
+    present_count = records.filter(status='PRESENT').count()
+    absent_count = records.filter(status='ABSENT').count()
+
+    stats = {
+        'total_records': total_records,
+        'present_rate': round((present_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'absent_rate': round((absent_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'late_rate': 0  # Maintained at 0 since model STATUS_CHOICES only specifies PRESENT/ABSENT
+    }
+
+    # 2. Compile Lecturer Location Audit Log Dataset Dynamically
+    audit_logs = []
+    # Fetching the top 20 latest session instances to prevent UI buffer layout breaks
+    for session in sessions[:20]:
+        t_entry = session.timetable_entry
+        has_coords = session.teacher_latitude is not None and session.teacher_longitude is not None
+        
+        location_str = f"{session.teacher_latitude}, {session.teacher_longitude}" if has_coords else "Not captured"
+        
+        audit_logs.append({
+            "date": session.date_marked.strftime("%Y-%m-%d") if session.date_marked else "—",
+            "class": t_entry.stream.name if t_entry.stream else "—",
+            "lecturer": t_entry.teacher.user.email if t_entry.teacher and t_entry.teacher.user else "—",
+            "location": location_str,
+            "ip": "—",  # Placeholder asset as IP capture hooks are not defined inside current models schema
+            "verified": has_coords  # Flag verified true strictly if geolocation values exist
+        })
+
+    # 3. Pull Top Students Metrics Arrays via Database Annotations
+    students = StudentProfile.objects.select_related('stream').annotate(
+        total_rec=Count('attendancerecord'),
+        present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT'))
+    ).filter(total_rec__gt=0)
+    
+    top_students_raw = []
+    for s in students:
+        rate = (s.present_rec / s.total_rec) * 100
+        top_students_raw.append({
+            "name": s.name,
+            "reg": s.reg_number,
+            "class": s.stream.name if s.stream else "—",
+            "rate_num": rate,
+            "rate": f"{round(rate, 1)}%"
+        })
+    
+    # Sort and slice dataset to grab top performing arrays
+    top_students = sorted(top_students_raw, key=lambda x: x['rate_num'], reverse=True)[:5]
+
+    # 4. Generate Aggregated Payload Engines for ChartJS
+    # Chart A: Global Present vs Absent distribution count vectors
+    chart_dist_data = [present_count, absent_count]
+    
+    # Chart B: Generate stream breakdown labels and cross-cutting attendance percentage matrices
+    streams_data = Stream.objects.annotate(
+        total=Count('students__attendancerecord'),
+        present=Count('students__attendancerecord', filter=Q(students__attendancerecord__status='PRESENT'))
+    ).filter(total__gt=0)
+    
+    stream_labels = [stream.name for stream in streams_data]
+    stream_rates = [round((stream.present / stream.total) * 100, 1) for stream in streams_data]
+
+    # Context compilation pass payload arrays safely out into frontend DOM nodes
+    context = {
+        'stats': stats,
+        'audit_logs': audit_logs,
+        'top_students': top_students,
+        'streams': Stream.objects.all(),
+        'selected_stream': selected_stream_id,
+        'chart_dist_data': json.dumps(chart_dist_data),
+        'stream_labels': json.dumps(stream_labels),
+        'stream_rates': json.dumps(stream_rates),
+    }
+    return render(request, 'attendance/analytics_dashboard.html', context)
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    # 1. Summary Statistics Metrics
+    stats = {
+        'total_records': 10,
+        'present_rate': 90,
+        'absent_rate': 10,
+        'late_rate': 0
+    }
+
+    # 2. Lecturer Location Audit Log Dataset
+    audit_logs = [
+        {"date": "2026-06-26 @ 15:21", "class": "NDEE Weekend", "lecturer": "laban.omenyo.ai@gmail.com", "location": "0.3375, 32.5943 (±193642m)", "ip": "41.210.154.15", "verified": True},
+        {"date": "2026-06-25 @ 21:45", "class": "NDME A", "lecturer": "technologiestescal@gmail.com", "location": "-0.6195, 30.6697 (±65m)", "ip": "41.210.154.139", "verified": True},
+        {"date": "2026-05-18 @ 16:20", "class": "NDEE Weekend", "lecturer": "technologiestescal@gmail.com", "location": "-0.5470, 30.2457 (±130m)", "ip": "154.72.206.194", "verified": True},
+        {"date": "2026-05-10 @ 09:13", "class": "NDEE Weekend", "lecturer": "technologiestescal@gmail.com", "location": "-0.5469, 30.2457 (±68m)", "ip": "41.210.146.63", "verified": True},
+        {"date": "2026-05-10 @ 22:06", "class": "NDME A", "lecturer": "technologiestescal@gmail.com", "location": "Not captured", "ip": "41.210.146.63", "verified": True},
+        {"date": "2026-05-10 @ 21:54", "class": "NDME A", "lecturer": "technologiestescal@gmail.com", "location": "-0.5502, 30.2441 (±30m)", "ip": "41.210.146.63", "verified": False},
+        {"date": "2026-05-10 @ 12:36", "class": "NDA A", "lecturer": "technologiestescal@gmail.com", "location": "-0.5469, 30.2457 (±61m)", "ip": "154.72.206.194", "verified": True},
+        {"date": "2026-05-10 @ 12:35", "class": "NDA A", "lecturer": "technologiestescal@gmail.com", "location": "Not captured", "ip": "154.72.206.194", "verified": False},
+        {"date": "2026-05-08 @ 22:54", "class": "NDEE Weekend", "lecturer": "—", "location": "Not captured", "ip": "—", "verified": False},
+        {"date": "2026-05-09 @ 22:33", "class": "NDA A", "lecturer": "—", "location": "Not captured", "ip": "—", "verified": False},
+        {"date": "2026-05-09 @ 10:57", "class": "NDEE Weekend", "lecturer": "—", "location": "Not captured", "ip": "—", "verified": False},
+        {"date": "2026-05-09 @ 10:39", "class": "NDME A", "lecturer": "—", "location": "Not captured", "ip": "—", "verified": False},
+    ]
+
+    # 3. Top Students Placeholder Data Structure
+    top_students = [
+        {"name": "Mukasa John", "reg": "2025/NDEE/021", "class": "NDEE Weekend", "rate": "98%"},
+        {"name": "Ainomugisha Dianah", "reg": "2025/NDME/104", "class": "NDME A", "rate": "96%"},
+        {"name": "Mwesigye Brian", "reg": "2025/NDA/008", "class": "NDA A", "rate": "95%"},
+    ]
+
+    context = {
+        'stats': stats,
+        'audit_logs': audit_logs,
+        'top_students': top_students,
+    }
+    return render(request, 'attendance/analytics_dashboard.html', context)
+
+
+
+'''
+from django.shortcuts import render
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+import json
+from attendance.models import User, Stream, AttendanceRecord, AttendanceSession, StudentProfile
+
+@login_required
+def analytics_dashboard(request):
+    # Enforce strict Admin-only access rule matrix
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+
+    # Place this code inside views.py right after applying scoping filters:
+    if request.GET.get('export') == 'csv':
+        import csv
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="attendance_report.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Reg Number', 'Status', 'Date'])
+        
+        # Pull transactional scope data
+        for record in records.select_related('student', 'session'):
+            writer.writerow([
+                record.student.name, 
+                record.student.reg_number, 
+                record.status, 
+                record.session.date_marked.strftime('%Y-%m-%d') if record.session.date_marked else 'N/A'
+            ])
+        return response
+    # Extract optional filter parameters from template request scopes
+    selected_stream_id = request.GET.get('stream')
+    
+    # Base query sets targeting core transactional datasets
+    records = AttendanceRecord.objects.all()
+    sessions = AttendanceSession.objects.select_related(
+        'timetable_entry__teacher__user', 
+        'timetable_entry__stream'
+    ).order_by('-date_marked')
+    
+    # Dynamic application of scoping filters if requested by the end-user
+    if selected_stream_id and selected_stream_id != 'all':
+        records = records.filter(student__stream_id=selected_stream_id)
+        sessions = sessions.filter(timetable_entry__stream_id=selected_stream_id)
+
+    # 1. Compute Live Summary Statistics Metrics Matrix
+    total_records = records.count()
+    present_count = records.filter(status='PRESENT').count()
+    absent_count = records.filter(status='ABSENT').count()
+
+    stats = {
+        'total_records': total_records,
+        'present_rate': round((present_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'absent_rate': round((absent_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'late_rate': 0  # Maintained at 0 since model STATUS_CHOICES only specifies PRESENT/ABSENT
+    }
+
+    # 2. Compile Lecturer Location Audit Log Dataset Dynamically
+    audit_logs = []
+    for session in sessions[:20]:
+        t_entry = session.timetable_entry
+        has_coords = session.teacher_latitude is not None and session.teacher_longitude is not None
+        location_str = f"{session.teacher_latitude}, {session.teacher_longitude}" if has_coords else "Not captured"
+        
+        audit_logs.append({
+            "date": session.date_marked.strftime("%Y-%m-%d") if session.date_marked else "—",
+            "class": t_entry.stream.name if t_entry.stream else "—",
+            "lecturer": t_entry.teacher.user.email if t_entry.teacher and t_entry.teacher.user else "—",
+            "location": location_str,
+            "ip": "—",  
+            "verified": has_coords  
+        })
+
+    # 3. Pull Top Present & Absent Students Metrics Arrays via Database Annotations (Top 20)
+    students = StudentProfile.objects.select_related('stream').annotate(
+        total_rec=Count('attendancerecord'),
+        present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT')),
+        absent_rec=Count('attendancerecord', filter=Q(attendancerecord__status='ABSENT'))
+    ).filter(total_rec__gt=0)
+    
+    students_raw = []
+    for s in students:
+        p_rate = (s.present_rec / s.total_rec) * 100
+        a_rate = (s.absent_rec / s.total_rec) * 100
+        students_raw.append({
+            "name": s.name,
+            "reg": s.reg_number,
+            "class": s.stream.name if s.stream else "—",
+            "p_rate_num": p_rate,
+            "a_rate_num": a_rate,
+            "p_rate": f"{round(p_rate, 1)}%",
+            "a_rate": f"{round(a_rate, 1)}%"
+        })
+    
+    top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)[:20]
+    top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)[:20]
+
+    # 4. Generate Teacher Attendance Submission Compliance Metrics Report
+    # Safely obtain reference model paths across dynamic app configurations
+    TimetableEntry = AttendanceSession._meta.get_field('timetable_entry').related_model
+    total_system_sessions = sessions.count()
+
+    # Aggregate total dynamic submitted sessions grouped by unique teachers
+    teacher_counts = sessions.values('timetable_entry__teacher_id').annotate(count=Count('id'))
+    counts_map = {item['timetable_entry__teacher_id']: item['count'] for item in teacher_counts if item['timetable_entry__teacher_id']}
+
+    # Retrieve scheduled operational scope criteria
+    timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
+    if selected_stream_id and selected_stream_id != 'all':
+        timetable_entries = timetable_entries.filter(stream_id=selected_stream_id)
+
+    teachers_raw = []
+    seen_teachers = set()
+
+    for entry in timetable_entries:
+        if entry.teacher and entry.teacher.id not in seen_teachers:
+            seen_teachers.add(entry.teacher.id)
+            email = entry.teacher.user.email if entry.teacher.user else "—"
+            submitted = counts_map.get(entry.teacher.id, 0)
+            
+            # Submission rate representing total active system share matching the selected filters scope
+            rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
+            
+            teachers_raw.append({
+                'email': email,
+                'submitted': submitted,
+                'rate': f"{rate}%"
+            })
+
+    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
+    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
+
+    # 5. Generate Aggregated Payload Engines for ChartJS
+    chart_dist_data = [present_count, absent_count]
+    
+    streams_data = Stream.objects.annotate(
+        total=Count('students__attendancerecord'),
+        present=Count('students__attendancerecord', filter=Q(students__attendancerecord__status='PRESENT'))
+    ).filter(total__gt=0)
+    
+    stream_labels = [stream.name for stream in streams_data]
+    stream_rates = [round((stream.present / stream.total) * 100, 1) for stream in streams_data]
+
+    context = {
+        'stats': stats,
+        'audit_logs': audit_logs,
+        'top_present_students': top_present_students,
+        'top_absent_students': top_absent_students,
+        'top_submitted_teachers': top_submitted_teachers,
+        'top_unsubmitted_teachers': top_unsubmitted_teachers,
+        'streams': Stream.objects.all(),
+        'selected_stream': selected_stream_id,
+        'chart_dist_data': json.dumps(chart_dist_data),
+        'stream_labels': json.dumps(stream_labels),
+        'stream_rates': json.dumps(stream_rates),
+    }
+    return render(request, 'attendance/analytics_dashboard.html', context)

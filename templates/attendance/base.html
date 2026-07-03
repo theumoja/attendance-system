@@ -452,21 +452,25 @@
                     <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-chart-pie"></i> Control Dashboard</a>
                     
                     <div class="drawer-heading">Academic Records</div>
-                    <!-- Department controls injected into mobile matrix array -->
-                    <a href="{% url 'attendance:admin_report_page' %}"><i class="fas fa-chart-line"></i> Admin Departmental Report</a>
+                    <a href="{% url 'attendance:manage_departments' %}"><i class="fas fa-building"></i>2  Manage Departments</a>
+                    <a href="{% url 'attendance:admin_report_page' %}"><i class="fas fa-chart-line"></i> Department Reports</a>
                     <a href="{% url 'attendance:manage_teachers' %}"><i class="fas fa-chalkboard-teacher"></i> Teachers Directory</a>
                     <a href="{% url 'attendance:manage_students' %}"><i class="fas fa-user-graduate"></i> Students Directory</a>
                     <a href="{% url 'attendance:manage_courses' %}"><i class="fas fa-book"></i> Courses</a>
                     <a href="{% url 'attendance:manage_course_units' %}"><i class="fas fa-layer-group"></i> Course Units</a>
                     <a href="{% url 'attendance:manage_streams' %}"><i class="fas fa-stream"></i> Academic Streams Layout</a>
                     
+                    <!-- NEW LINK INJECTION -->
+                    <a href="{% url 'attendance:analytics_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'analytics_dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Reports & Analytics
+                    </a>
                     <div class="drawer-heading">Scheduling Operations</div>
-                    <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetables</a>
+                    <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetable</a>
                     
                     <div class="drawer-heading">Bulk Data Management</div>
-                    <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Bulk Upload Courses</a>
-                    <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Bulk Upload Teachers</a>
-                    <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Bulk Upload Students</a>
+                    <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Upload Courses</a>
+                    <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Upload Teachers</a>
+                    <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Upload Students</a>
                     <a href="{% url 'attendance:bulk_upload_streams' %}"><i class="fas fa-upload"></i> Bulk Upload Streams</a>
                     
                     <div class="drawer-heading">System Export Controls</div>
@@ -512,13 +516,11 @@
                     </a>
                     
                     <div class="sidebar-heading">Academic Records</div>
-                    <!-- Department controls injected into persistent desktop sidebar view -->
-                    <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
-                        <i class="fas fa-chart-line"></i>  Admin Departmental Report
-                    </a>
-                    <!-- Department controls injected into persistent desktop sidebar view -->
                     <a href="{% url 'attendance:manage_departments' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_departments' %}active{% endif %}">
-                        <i class="fas fa-building"></i>  Departments
+                        <i class="fas fa-building"></i> Manage Departments
+                    </a>
+                    <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Department Reports
                     </a>
                     <a href="{% url 'attendance:manage_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_teachers' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i> Teachers Directory
@@ -535,23 +537,29 @@
                     <a href="{% url 'attendance:manage_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_streams' %}active{% endif %}">
                         <i class="fas fa-stream"></i> Academic Streams Layout
                     </a>
+                    <!-- Inside <aside class="sidebar" id="sidebarContainer"> -->
+
+                    <!-- NEW LINK INJECTION -->
+                    <a href="{% url 'attendance:analytics_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'analytics_dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Reports & Analytics
+                    </a>
                     
                     <span class="sidebar-divider"></span>
                     
                     <div class="sidebar-heading">Scheduling Operations</div>
                     <a href="{% url 'attendance:upload_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_timetable' %}active{% endif %}">
-                        <i class="fas fa-calendar-alt"></i> Manage Timetables
+                        <i class="fas fa-calendar-alt"></i> Manage Timetable
                     </a>
                     
                     <div class="sidebar-heading">Bulk Data Management</div>
                     <a href="{% url 'attendance:bulk_upload_courses' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_courses' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Courses
+                        <i class="fas fa-upload"></i> Upload Courses
                     </a>
                     <a href="{% url 'attendance:bulk_upload_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_teachers' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Teachers
+                        <i class="fas fa-upload"></i> Upload Teachers
                     </a>
                     <a href="{% url 'attendance:bulk_upload_students' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_students' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Students
+                        <i class="fas fa-upload"></i> Upload Students
                     </a>
                     <a href="{% url 'attendance:bulk_upload_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_streams' %}active{% endif %}">
                         <i class="fas fa-upload"></i> Bulk Upload Streams
