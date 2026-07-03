@@ -14,8 +14,9 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        flex-wrap: wrap;
     }
-    .filter-select {
+    .filter-select, .date-input {
         padding: 0.6rem 1.2rem;
         border-radius: 50px;
         border: 1px solid var(--border);
@@ -27,7 +28,10 @@
         transition: var(--transition);
         cursor: pointer;
     }
-    .filter-select:focus {
+    .date-input {
+        border-radius: 8px;
+    }
+    .filter-select:focus, .date-input:focus {
         border-color: var(--secondary);
     }
     .action-buttons {
@@ -73,6 +77,21 @@
         max-height: 480px;
         overflow-y: auto;
     }
+    .btn-toggle {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: var(--text-main);
+        transition: all 0.2s ease;
+    }
+    .btn-toggle.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
 </style>
 
 <div class="analytics-container">
@@ -97,7 +116,6 @@
         </div>
         <div class="action-buttons">
             <button class="btn btn-outline" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
-            <!-- Dynamic Export Route passing active stream criteria -->
             <a href="?export=csv{% if selected_stream %}&stream={{ selected_stream }}{% endif %}" class="btn">
                 <i class="fas fa-file-csv"></i> Export CSV
             </a>
@@ -142,6 +160,118 @@
             <div class="chart-box">
                 <canvas id="classChart"></canvas>
             </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- NEW: SECTION 0: COMPLETE DETAILED STUDENT ATTENDANCE REPORT WORKFLOW -->
+    <!-- ========================================================================= -->
+    <div class="section-title" id="detailed-reports">
+        <i class="fas fa-file-invoice" style="color: var(--secondary);"></i> Comprehensive Student Roster Attendance Reports
+    </div>
+
+    <div class="card" style="margin-bottom: 2.5rem;">
+        <form method="GET" action="#detailed-reports" id="reportFilterForm">
+            <!-- Hidden context tracking variable to sustain toggle configurations -->
+            <input type="hidden" name="quick_range" id="quickRangeInput" value="{{ quick_range|default:'' }}">
+            
+            <div class="grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <!-- Cascade Level 1: Department Selection Mapping -->
+                <div>
+                    <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Academic Department</label>
+                    <select name="filter_dept" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                        <option value="">-- All Departments --</option>
+                        {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if filter_dept == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Cascade Level 2: Dependent Course Layout Matrix -->
+                <div>
+                    <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Program Course</label>
+                    <select name="filter_course" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                        <option value="">-- All Matching Courses --</option>
+                        {% for course in courses %}
+                            <option value="{{ course.code }}" {% if filter_course == course.code %}selected{% endif %}>[{{ course.code }}] {{ course.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Cascade Level 3: Dependent Stream Structure Vector -->
+                <div>
+                    <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Class Stream Scope</label>
+                    <select name="filter_stream" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                        <option value="">-- All Stream Classes --</option>
+                        {% for stream in selectable_streams %}
+                            <option value="{{ stream.id }}" {% if filter_stream == stream.id|stringformat:"s" %}selected{% endif %}>{{ stream.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Granular Matrix Timeframe Control Interfaces -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-top: 1px solid var(--border); padding-top: 1.25rem;">
+                <div class="filter-group">
+                    <span style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted);">Timeframe Matrix:</span>
+                    <button type="button" class="btn-toggle {% if quick_range == 'today' %}active{% endif %}" onclick="setQuickRange('today')">Today</button>
+                    <button type="button" class="btn-toggle {% if quick_range == 'week' %}active{% endif %}" onclick="setQuickRange('week')">This Week</button>
+                    <button type="button" class="btn-toggle {% if quick_range == 'month' %}active{% endif %}" onclick="setQuickRange('month')">This Month</button>
+                    <button type="button" class="btn-toggle {% if not quick_range %}active{% endif %}" onclick="setQuickRange('')">Custom Range</button>
+                </div>
+
+                <div class="filter-group" id="customDateInputs" style="{% if quick_range %}display: none;{% endif %}">
+                    <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="date-input" placeholder="Start Date">
+                    <span style="color: var(--text-muted);">to</span>
+                    <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="date-input" placeholder="End Date">
+                </div>
+
+                <div class="action-buttons">
+                    <button type="submit" class="btn"><i class="fas fa-filter"></i> Apply Constraints</button>
+                    <a href="?export=detailed_student_csv&filter_dept={{ filter_dept|default:'' }}&filter_course={{ filter_course|default:'' }}&filter_stream={{ filter_stream|default:'' }}&start_date={{ start_date|default:'' }}&end_date={{ end_date|default:'' }}&quick_range={{ quick_range|default:'' }}" class="btn style="background-color: #047857;">
+                        <i class="fas fa-download"></i> Download Report
+                    </a>
+                </div>
+            </div>
+        </form>
+
+        <!-- Complete Comprehensive Evaluation Data Grid -->
+        <div class="table-wrapper" style="margin-top: 1.5rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student Full Name</th>
+                        <th>Registration Identifier</th>
+                        <th>Assigned Academic Stream</th>
+                        <th style="text-align: center;">Total Records</th>
+                        <th style="text-align: center;">Present Days</th>
+                        <th>Absolute Attendance Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in detailed_student_reports %}
+                    <tr>
+                        <td style="font-weight: 600;">{{ item.name }}</td>
+                        <td style="font-family: monospace; font-size: 0.85rem;">{{ item.reg_number }}</td>
+                        <td><span class="badge" style="background:#f1f5f9; color:var(--text-main);">{{ item.stream_name }}</span></td>
+                        <td style="text-align: center; font-weight: 500;">{{ item.total_logs }}</td>
+                        <td style="text-align: center; color: var(--success); font-weight: 600;">{{ item.present_logs }}</td>
+                        <td>
+                            <strong style="{% if item.percentage_num >= 75 %}color: var(--success);{% else %}color: var(--danger);{% endif %}">
+                                {{ item.attendance_percentage }}
+                            </strong>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                            <i class="fas fa-folder-open" style="font-size: 2rem; display: block; margin-bottom: 0.5rem; color: var(--border);"></i>
+                            No unique log frameworks match specified query metric configurations.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -301,7 +431,6 @@
                         <th>Class Stream</th>
                         <th>Lecturer Email</th>
                         <th>GPS Coordinates</th>
- 
                         <th>Verification Status</th>
                     </tr>
                 </thead>
@@ -312,7 +441,6 @@
                         <td><span style="background: #f1f5f9; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ log.class }}</span></td>
                         <td style="color: var(--text-muted); font-size: 0.9rem;">{{ log.lecturer }}</td>
                         <td style="font-family: monospace; font-size: 0.85rem;">{{ log.location }}</td>
-
                         <td>
                             {% if log.verified %}
                                 <span class="badge badge-success"><i class="fas fa-shield-alt"></i> Verified GPS</span>
@@ -323,7 +451,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No lecturer sessions logged in this scope.</td>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No lecturer sessions logged in this scope.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -334,6 +462,17 @@
 
 <!-- Chart Generation Engine Scripts -->
 <script>
+    // Quick Range state configuration tool function
+    function setQuickRange(val) {
+        document.getElementById('quickRangeInput').value = val;
+        if(val === "") {
+            document.getElementById('customDateInputs').style.display = 'flex';
+        } else {
+            document.getElementById('customDateInputs').style.display = 'none';
+            document.getElementById('reportFilterForm').submit();
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
         // 1. Chart Data Distribution Configs (Doughnut System)
         const ctxDist = document.getElementById('distributionChart').getContext('2d');
