@@ -170,7 +170,7 @@
                             <td style="font-weight: 600;">{{ student.name }}</td>
                             <td style="font-family: monospace; font-size: 0.85rem;">{{ student.reg }}</td>
                             <td><span class="badge" style="background:#f1f5f9; color:var(--text-main);">{{ student.class }}</span></td>
-                            <td><strong style="color: var(--success);">{{ student.present_rate }}</strong></td>
+                            <td><strong style="color: var(--success);">{{ student.p_rate }}</strong></td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -201,7 +201,7 @@
                             <td style="font-weight: 600;">{{ student.name }}</td>
                             <td style="font-family: monospace; font-size: 0.85rem;">{{ student.reg }}</td>
                             <td><span class="badge" style="background:#f1f5f9; color:var(--text-main);">{{ student.class }}</span></td>
-                            <td><strong style="color: var(--danger);">{{ student.absent_rate }}</strong></td>
+                            <td><strong style="color: var(--danger);">{{ student.a_rate }}</strong></td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -301,7 +301,7 @@
                         <th>Class Stream</th>
                         <th>Lecturer Email</th>
                         <th>GPS Coordinates</th>
-                        <th>IP Address</th>
+ 
                         <th>Verification Status</th>
                     </tr>
                 </thead>
@@ -312,7 +312,7 @@
                         <td><span style="background: #f1f5f9; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ log.class }}</span></td>
                         <td style="color: var(--text-muted); font-size: 0.9rem;">{{ log.lecturer }}</td>
                         <td style="font-family: monospace; font-size: 0.85rem;">{{ log.location }}</td>
-                        <td style="font-family: monospace; color: var(--text-muted);">{{ log.ip }}</td>
+
                         <td>
                             {% if log.verified %}
                                 <span class="badge badge-success"><i class="fas fa-shield-alt"></i> Verified GPS</span>
