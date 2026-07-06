@@ -1056,8 +1056,545 @@ import json
 import csv
 from attendance.models import User, Department, Course, Stream, AttendanceRecord, AttendanceSession, StudentProfile
 
+import csv
+import json
+from datetime import datetime, timedelta
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.shortcuts import render
+from django.core.exceptions import FieldError
+
+# Assuming your models are imported like this:
+# from .models import User, Department, Course, Stream, StudentProfile, AttendanceRecord, AttendanceSession
+
 @login_required
 def analytics_dashboard(request):
+    # Enforce strict Admin-only access rule matrix
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    # 1. CAPTURE DETAILED REPORT FILTERS
+    filter_dept = request.GET.get('filter_dept')
+    filter_course = request.GET.get('filter_course')
+    filter_stream = request.GET.get('filter_stream')
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    quick_range = request.GET.get('quick_range')
+
+    # Base entity dropdown datasets supporting cascading display lists
+    all_departments = Department.objects.all()
+    selectable_courses = Course.objects.all()
+    selectable_streams = Stream.objects.all()
+
+    if filter_dept:
+        selectable_courses = selectable_courses.filter(department_id=filter_dept)
+    if filter_course:
+        selectable_streams = selectable_streams.filter(course__code=filter_course)
+
+    # 2. RESOLVE TIME DATA WINDOW CONSTRAINTS
+    today = datetime.now().date()
+    start_date = None
+    end_date = None
+
+    if quick_range == 'today':
+        start_date = today
+        end_date = today
+    elif quick_range == 'week':
+        start_date = today - timedelta(days=7)
+        end_date = today
+    elif quick_range == 'month':
+        start_date = today - timedelta(days=30)
+        end_date = today
+    else:
+        if start_date_str and start_date_str != 'None':
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if end_date_str and end_date_str != 'None':
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+    # Build cross-cutting performance filter arrays
+    record_date_filter = Q()
+    if start_date:
+        record_date_filter &= Q(attendancerecord__session__date_marked__gte=start_date)
+    if end_date:
+        record_date_filter &= Q(attendancerecord__session__date_marked__lte=end_date)
+
+    # 3. COMPILE COMPLETE DETAILED STUDENT POPULATION ROSTER
+    report_students_queryset = StudentProfile.objects.select_related('stream', 'course__department').all()
+    
+    if filter_stream:
+        report_students_queryset = report_students_queryset.filter(stream_id=filter_stream)
+    elif filter_course:
+        report_students_queryset = report_students_queryset.filter(course__code=filter_course)
+    elif filter_dept:
+        report_students_queryset = report_students_queryset.filter(course__department_id=filter_dept)
+
+    # Calculate absolute percentages over selected date parameters
+    annotated_students = report_students_queryset.annotate(
+        total_filtered_records=Count('attendancerecord', filter=record_date_filter),
+        present_filtered_records=Count('attendancerecord', filter=record_date_filter & Q(attendancerecord__status='PRESENT'))
+    ).order_by('name')
+
+    detailed_student_reports = []
+    for s in annotated_students:
+        tot = s.total_filtered_records
+        pres = s.present_filtered_records
+        percentage_val = round((pres / tot) * 100, 1) if tot > 0 else 0.0
+        
+        detailed_student_reports.append({
+            "name": s.name,
+            "reg_number": s.reg_number,
+            "stream_name": s.stream.name if s.stream else "—",
+            "total_logs": tot,
+            "present_logs": pres,
+            "attendance_percentage": f"{percentage_val}%",
+            "percentage_num": percentage_val
+        })
+
+    # 4. INTERCEPT SPECIFIC DETAILED EXPORT REQUESTS
+    if request.GET.get('export') == 'detailed_student_csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="detailed_student_report_{today}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Registration Number', 'Assigned Stream', 'Total Sessions Checked', 'Sessions Attended', 'Attendance Rate'])
+        for item in detailed_student_reports:
+            writer.writerow([item['name'], item['reg_number'], item['stream_name'], item['total_logs'], item['present_logs'], item['attendance_percentage']])
+        return response
+
+    # 5. PRESERVE ORIGINAL ANALYTICS COMPONENT ARRAYS
+    selected_stream_id = request.GET.get('stream')
+    records = AttendanceRecord.objects.all()
+    sessions = AttendanceSession.objects.select_related('timetable_entry__teacher__user', 'timetable_entry__stream').order_by('-date_marked')
+    
+    if selected_stream_id and selected_stream_id != 'all':
+        records = records.filter(student__stream_id=selected_stream_id)
+        sessions = sessions.filter(timetable_entry__stream_id=selected_stream_id)
+
+    # 6. INTERCEPT GLOBAL CSV EXPORT REQUEST
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="attendance_report.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Reg Number', 'Class/Stream', 'Status', 'Date'])
+        for record in records.select_related('student__stream', 'session'):
+            date_val = record.session.date_marked.strftime('%Y-%m-%d') if hasattr(record, 'session') and record.session.date_marked else 'N/A'
+            stream_name = record.student.stream.name if record.student.stream else 'N/A'
+            writer.writerow([record.student.name, record.student.reg_number, stream_name, record.status, date_val])
+        return response
+
+    # Process original global metrics
+    total_records = records.count()
+    present_count = records.filter(status='PRESENT').count()
+    absent_count = records.filter(status='ABSENT').count()
+
+    stats = {
+        'total_records': total_records,
+        'present_rate': round((present_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'absent_rate': round((absent_count / total_records) * 100, 1) if total_records > 0 else 0,
+    }
+
+    # Location Log Parsing
+    audit_logs = []
+    for session in sessions[:20]:
+        t_entry = session.timetable_entry
+        has_coords = session.teacher_latitude is not None and session.teacher_longitude is not None
+        location_str = f"{session.teacher_latitude}, {session.teacher_longitude}" if has_coords else "Not captured"
+        audit_logs.append({
+            "date": session.date_marked.strftime("%Y-%m-%d") if session.date_marked else "—",
+            "class": t_entry.stream.name if t_entry.stream else "—",
+            "lecturer": t_entry.teacher.user.email if t_entry.teacher and t_entry.teacher.user else "—",
+            "location": location_str,
+            "ip": "—",  
+            "verified": has_coords  
+        })
+
+    # Standard Top-20 Matrix Ingestion 
+    students = StudentProfile.objects.select_related('stream').annotate(
+        total_rec=Count('attendancerecord'),
+        present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT')),
+        absent_rec=Count('attendancerecord', filter=Q(attendancerecord__status='ABSENT'))
+    ).filter(total_rec__gt=0)
+    
+    students_raw = []
+    for s in students:
+        p_rate = (s.present_rec / s.total_rec) * 100
+        a_rate = (s.absent_rec / s.total_rec) * 100
+        students_raw.append({
+            "name": s.name,
+            "reg": s.reg_number,
+            "class": s.stream.name if s.stream else "—",
+            "p_rate_num": p_rate,
+            "a_rate_num": a_rate,
+            "p_rate": f"{round(p_rate, 1)}%",
+            "a_rate": f"{round(a_rate, 1)}%"
+        })
+    
+    top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)[:20]
+    top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)[:20]
+
+    # 7. RESILIENT CASCADING LOGIC FOR LECTURER COMPLIANCE REPORT
+    TimetableEntry = AttendanceSession._meta.get_field('timetable_entry').related_model
+    
+    compliance_sessions = AttendanceSession.objects.all()
+    timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
+    
+    # Apply dynamic scoping constraints based on user dropdown selections
+    if filter_stream:
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=filter_stream)
+        timetable_entries = timetable_entries.filter(stream_id=filter_stream)
+    elif filter_course:
+        try:
+            # Look up via standard Stream -> Course relation path
+            compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__code=filter_course)
+            timetable_entries = timetable_entries.filter(stream__course__code=filter_course)
+        except Exception:
+            try:
+                # Look up via direct Course schema field link (if any)
+                compliance_sessions = compliance_sessions.filter(timetable_entry__course__code=filter_course)
+                timetable_entries = timetable_entries.filter(course__code=filter_course)
+            except Exception:
+                pass
+    elif filter_dept:
+        try:
+            # Tier 1 Lookup: Query via Stream -> Course -> Department link mapping
+            compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__department_id=filter_dept)
+            timetable_entries = timetable_entries.filter(stream__course__department_id=filter_dept)
+            
+            if not timetable_entries.exists():
+                raise FieldError()
+        except (FieldError, Exception):
+            try:
+                # Tier 2 Lookup: Query via direct Course relationship on Timetable model
+                compliance_sessions = AttendanceSession.objects.filter(timetable_entry__course__department_id=filter_dept)
+                timetable_entries = TimetableEntry.objects.select_related('teacher__user').filter(course__department_id=filter_dept)
+                
+                if not timetable_entries.exists():
+                    raise FieldError()
+            except (FieldError, Exception):
+                try:
+                    # Tier 3 Lookup: Filter by the target Lecturer's home Department structural assignments
+                    compliance_sessions = AttendanceSession.objects.filter(
+                        Q(timetable_entry__teacher__department_id=filter_dept) | 
+                        Q(timetable_entry__teacher__user__department_id=filter_dept)
+                    )
+                    timetable_entries = TimetableEntry.objects.select_related('teacher__user').filter(
+                        Q(teacher__department_id=filter_dept) | 
+                        Q(teacher__user__department_id=filter_dept)
+                    )
+                except (FieldError, Exception):
+                    # Tier 4 Safe-Recovery Fallback: Maintain active structural roster list context
+                    compliance_sessions = AttendanceSession.objects.all()
+                    timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
+
+    # Apply global secondary dashboard overrides if set
+    if selected_stream_id and selected_stream_id != 'all':
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=selected_stream_id)
+        timetable_entries = timetable_entries.filter(stream_id=selected_stream_id)
+
+    # Compute explicit metrics (ensures teachers show up even with 0 submission values)
+    total_system_sessions = compliance_sessions.count()
+    teacher_counts = compliance_sessions.values('timetable_entry__teacher_id').annotate(count=Count('id'))
+    counts_map = {item['timetable_entry__teacher_id']: item['count'] for item in teacher_counts if item['timetable_entry__teacher_id']}
+
+    teachers_raw = []
+    seen_teachers = set()
+    for entry in timetable_entries:
+        if entry.teacher and entry.teacher.id not in seen_teachers:
+            seen_teachers.add(entry.teacher.id)
+            email = entry.teacher.user.email if entry.teacher.user else "—"
+            submitted = counts_map.get(entry.teacher.id, 0)
+            rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
+            teachers_raw.append({'email': email, 'submitted': submitted, 'rate': f"{rate}%"})
+
+    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
+    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
+
+    # Chart Generation Visual Processing Data Arrays
+    chart_dist_data = [present_count, absent_count]
+    streams_data = Stream.objects.annotate(
+        total=Count('students__attendancerecord'),
+        present=Count('students__attendancerecord', filter=Q(students__attendancerecord__status='PRESENT'))
+    ).filter(total__gt=0)
+    
+    stream_labels = [stream.name for stream in streams_data]
+    stream_rates = [round((stream.present / stream.total) * 100, 1) for stream in streams_data]
+
+    context = {
+        'stats': stats,
+        'audit_logs': audit_logs,
+        'top_present_students': top_present_students,
+        'top_absent_students': top_absent_students,
+        'top_submitted_teachers': top_submitted_teachers,
+        'top_unsubmitted_teachers': top_unsubmitted_teachers,
+        'streams': Stream.objects.all(),
+        'selected_stream': selected_stream_id,
+        'chart_dist_data': json.dumps(chart_dist_data),
+        'stream_labels': json.dumps(stream_labels),
+        'stream_rates': json.dumps(stream_rates),
+        
+        # Structural cascades UI framework mapping parameters
+        'departments': all_departments,
+        'courses': selectable_courses,
+        'selectable_streams': selectable_streams,
+        'detailed_student_reports': detailed_student_reports,
+        'filter_dept': filter_dept,
+        'filter_course': filter_course,
+        'filter_stream': filter_stream,
+        'start_date': start_date_str,
+        'end_date': end_date_str,
+        'quick_range': quick_range,
+    }
+    return render(request, 'attendance/analytics_dashboard.html', context)
+    # Enforce strict Admin-only access rule matrix
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    # 1. CAPTURE DETAILED REPORT FILTERS
+    filter_dept = request.GET.get('filter_dept')
+    filter_course = request.GET.get('filter_course')
+    filter_stream = request.GET.get('filter_stream')
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    quick_range = request.GET.get('quick_range')
+
+    # Base entity dropdown datasets supporting cascading display lists
+    all_departments = Department.objects.all()
+    selectable_courses = Course.objects.all()
+    selectable_streams = Stream.objects.all()
+
+    if filter_dept:
+        selectable_courses = selectable_courses.filter(department_id=filter_dept)
+    if filter_course:
+        selectable_streams = selectable_streams.filter(course__code=filter_course)
+
+    # 2. RESOLVE TIME DATA WINDOW CONSTRAINTS
+    today = datetime.now().date()
+    start_date = None
+    end_date = None
+
+    if quick_range == 'today':
+        start_date = today
+        end_date = today
+    elif quick_range == 'week':
+        start_date = today - timedelta(days=7)
+        end_date = today
+    elif quick_range == 'month':
+        start_date = today - timedelta(days=30)
+        end_date = today
+    else:
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+    # Build cross-cutting performance filter arrays
+    record_date_filter = Q()
+    if start_date:
+        record_date_filter &= Q(attendancerecord__session__date_marked__gte=start_date)
+    if end_date:
+        record_date_filter &= Q(attendancerecord__session__date_marked__lte=end_date)
+
+    # 3. COMPILE COMPLETE DETAILED STUDENT POPULATION ROSTER
+    report_students_queryset = StudentProfile.objects.select_related('stream', 'course__department').all()
+    
+    if filter_stream:
+        report_students_queryset = report_students_queryset.filter(stream_id=filter_stream)
+    elif filter_course:
+        report_students_queryset = report_students_queryset.filter(course__code=filter_course)
+    elif filter_dept:
+        report_students_queryset = report_students_queryset.filter(course__department_id=filter_dept)
+
+    # Calculate absolute percentages over selected date parameters
+    annotated_students = report_students_queryset.annotate(
+        total_filtered_records=Count('attendancerecord', filter=record_date_filter),
+        present_filtered_records=Count('attendancerecord', filter=record_date_filter & Q(attendancerecord__status='PRESENT'))
+    ).order_by('name')
+
+    detailed_student_reports = []
+    for s in annotated_students:
+        tot = s.total_filtered_records
+        pres = s.present_filtered_records
+        percentage_val = round((pres / tot) * 100, 1) if tot > 0 else 0.0
+        
+        detailed_student_reports.append({
+            "name": s.name,
+            "reg_number": s.reg_number,
+            "stream_name": s.stream.name if s.stream else "—",
+            "total_logs": tot,
+            "present_logs": pres,
+            "attendance_percentage": f"{percentage_val}%",
+            "percentage_num": percentage_val
+        })
+
+    # 4. INTERCEPT SPECIFIC DETAILED EXPORT REQUESTS
+    if request.GET.get('export') == 'detailed_student_csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="detailed_student_report_{today}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Registration Number', 'Assigned Stream', 'Total Sessions Checked', 'Sessions Attended', 'Attendance Rate'])
+        for item in detailed_student_reports:
+            writer.writerow([item['name'], item['reg_number'], item['stream_name'], item['total_logs'], item['present_logs'], item['attendance_percentage']])
+        return response
+
+    # 5. PRESERVE ORIGINAL ANALYTICS COMPONENT ARRAYS
+    selected_stream_id = request.GET.get('stream')
+    records = AttendanceRecord.objects.all()
+    sessions = AttendanceSession.objects.select_related('timetable_entry__teacher__user', 'timetable_entry__stream').order_by('-date_marked')
+    
+    if selected_stream_id and selected_stream_id != 'all':
+        records = records.filter(student__stream_id=selected_stream_id)
+        sessions = sessions.filter(timetable_entry__stream_id=selected_stream_id)
+
+    # 6. INTERCEPT GLOBAL CSV EXPORT REQUEST
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="attendance_report.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Student Name', 'Reg Number', 'Class/Stream', 'Status', 'Date'])
+        for record in records.select_related('student__stream', 'session'):
+            date_val = record.session.date_marked.strftime('%Y-%m-%d') if hasattr(record, 'session') and record.session.date_marked else 'N/A'
+            stream_name = record.student.stream.name if record.student.stream else 'N/A'
+            writer.writerow([record.student.name, record.student.reg_number, stream_name, record.status, date_val])
+        return response
+
+    # Process original global metrics
+    total_records = records.count()
+    present_count = records.filter(status='PRESENT').count()
+    absent_count = records.filter(status='ABSENT').count()
+
+    stats = {
+        'total_records': total_records,
+        'present_rate': round((present_count / total_records) * 100, 1) if total_records > 0 else 0,
+        'absent_rate': round((absent_count / total_records) * 100, 1) if total_records > 0 else 0,
+    }
+
+    # Location Log Parsing
+    audit_logs = []
+    for session in sessions[:20]:
+        t_entry = session.timetable_entry
+        has_coords = session.teacher_latitude is not None and session.teacher_longitude is not None
+        location_str = f"{session.teacher_latitude}, {session.teacher_longitude}" if has_coords else "Not captured"
+        audit_logs.append({
+            "date": session.date_marked.strftime("%Y-%m-%d") if session.date_marked else "—",
+            "class": t_entry.stream.name if t_entry.stream else "—",
+            "lecturer": t_entry.teacher.user.email if t_entry.teacher and t_entry.teacher.user else "—",
+            "location": location_str,
+            "ip": "—",  
+            "verified": has_coords  
+        })
+
+    # Standard Top-20 Matrix Ingestion 
+    students = StudentProfile.objects.select_related('stream').annotate(
+        total_rec=Count('attendancerecord'),
+        present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT')),
+        absent_rec=Count('attendancerecord', filter=Q(attendancerecord__status='ABSENT'))
+    ).filter(total_rec__gt=0)
+    
+    students_raw = []
+    for s in students:
+        p_rate = (s.present_rec / s.total_rec) * 100
+        a_rate = (s.absent_rec / s.total_rec) * 100
+        students_raw.append({
+            "name": s.name,
+            "reg": s.reg_number,
+            "class": s.stream.name if s.stream else "—",
+            "p_rate_num": p_rate,
+            "a_rate_num": a_rate,
+            "p_rate": f"{round(p_rate, 1)}%",
+            "a_rate": f"{round(a_rate, 1)}%"
+        })
+    
+    top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)[:20]
+    top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)[:20]
+
+    # 7. ADDED/UPDATED: Lecturer Attendance Submission Compliance Report Scope Filtering
+    TimetableEntry = AttendanceSession._meta.get_field('timetable_entry').related_model
+    
+    compliance_sessions = AttendanceSession.objects.all()
+    timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
+    
+    # Apply structural Department, Course, and Stream scope constraints dynamically
+    if filter_stream:
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=filter_stream)
+        timetable_entries = timetable_entries.filter(stream_id=filter_stream)
+    elif filter_course:
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__code=filter_course)
+        timetable_entries = timetable_entries.filter(stream__course__code=filter_course)
+    elif filter_dept:
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__department_id=filter_dept)
+        timetable_entries = timetable_entries.filter(stream__course__department_id=filter_dept)
+
+    if selected_stream_id and selected_stream_id != 'all':
+        compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=selected_stream_id)
+        timetable_entries = timetable_entries.filter(stream_id=selected_stream_id)
+
+    total_system_sessions = compliance_sessions.count()
+    teacher_counts = compliance_sessions.values('timetable_entry__teacher_id').annotate(count=Count('id'))
+    counts_map = {item['timetable_entry__teacher_id']: item['count'] for item in teacher_counts if item['timetable_entry__teacher_id']}
+
+    teachers_raw = []
+    seen_teachers = set()
+    for entry in timetable_entries:
+        if entry.teacher and entry.teacher.id not in seen_teachers:
+            seen_teachers.add(entry.teacher.id)
+            email = entry.teacher.user.email if entry.teacher.user else "—"
+            submitted = counts_map.get(entry.teacher.id, 0)
+            rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
+            teachers_raw.append({'email': email, 'submitted': submitted, 'rate': f"{rate}%"})
+
+    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
+    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
+
+    # Chart Generation Data Processing
+    chart_dist_data = [present_count, absent_count]
+    streams_data = Stream.objects.annotate(
+        total=Count('students__attendancerecord'),
+        present=Count('students__attendancerecord', filter=Q(students__attendancerecord__status='PRESENT'))
+    ).filter(total__gt=0)
+    
+    stream_labels = [stream.name for stream in streams_data]
+    stream_rates = [round((stream.present / stream.total) * 100, 1) for stream in streams_data]
+
+    context = {
+        'stats': stats,
+        'audit_logs': audit_logs,
+        'top_present_students': top_present_students,
+        'top_absent_students': top_absent_students,
+        'top_submitted_teachers': top_submitted_teachers,
+        'top_unsubmitted_teachers': top_unsubmitted_teachers,
+        'streams': Stream.objects.all(),
+        'selected_stream': selected_stream_id,
+        'chart_dist_data': json.dumps(chart_dist_data),
+        'stream_labels': json.dumps(stream_labels),
+        'stream_rates': json.dumps(stream_rates),
+        
+        # Detailed reporting fields context
+        'departments': all_departments,
+        'courses': selectable_courses,
+        'selectable_streams': selectable_streams,
+        'detailed_student_reports': detailed_student_reports,
+        'filter_dept': filter_dept,
+        'filter_course': filter_course,
+        'filter_stream': filter_stream,
+        'start_date': start_date_str,
+        'end_date': end_date_str,
+        'quick_range': quick_range,
+    }
+    return render(request, 'attendance/analytics_dashboard.html', context)
     # Enforce strict Admin-only access rule matrix
     if request.user.role != User.IS_ADMIN:
         return HttpResponse("Unauthorized", status=403)

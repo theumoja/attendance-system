@@ -60,16 +60,16 @@
         ::-webkit-scrollbar-track { background: var(--bg-main); }
         ::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 10px; }
 
-        /* ----- Navbar ----- */
+        /* ----- Navbar with blended blue-teal gradient ----- */
         nav {
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            background: linear-gradient(135deg, #082b2e 0%, #0f3b3e 25%, #1e3a8a 65%, #3b82f6 100%);
             color: #fff;
             padding: 0 2rem;
             height: var(--nav-height);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
             position: sticky;
             top: 0;
             z-index: 1000;
@@ -89,13 +89,13 @@
             letter-spacing: -0.02em;
             cursor: pointer;
         }
-        .nav-brand i { font-size: 1.6rem; color: #a7f3d0; }
-        .nav-brand span { background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 50px; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.03em; margin-left: 0.25rem; }
+        .nav-brand i { font-size: 1.6rem; color: #bfdbfe; }
+        .nav-brand span { background: rgba(255,255,255,0.15); padding: 0.2rem 0.8rem; border-radius: 50px; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.03em; margin-left: 0.25rem; }
 
         /* Desktop Sidebar Control Toggle */
         .desktop-toggle-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             color: #fff;
             width: 36px;
             height: 36px;
@@ -107,7 +107,7 @@
             transition: var(--transition);
         }
         .desktop-toggle-btn:hover {
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.3);
             transform: scale(1.05);
         }
 
@@ -117,7 +117,7 @@
             gap: 0.25rem;
         }
         .nav-links a, .dropdown-btn {
-            color: rgba(255,255,255,0.85);
+            color: rgba(255,255,255,0.9);
             padding: 0.5rem 1.2rem;
             border-radius: 50px;
             font-weight: 500;
@@ -132,7 +132,7 @@
             position: relative;
         }
         .nav-links a:hover, .dropdown-btn:hover {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.2);
             color: #fff;
             transform: translateY(-1px);
         }
@@ -174,9 +174,9 @@
         .nav-user .user-greeting strong { font-weight: 600; }
         .nav-user .logout-btn, .nav-user .login-btn, .nav-user .security-btn {
             padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 600; font-size: 0.85rem; transition: var(--transition);
-            background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.25); backdrop-filter: blur(4px);
+            background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(4px);
         }
-        .nav-user .security-btn:hover { background: rgba(255,255,255,0.25); border-color: #fff; }
+        .nav-user .security-btn:hover { background: rgba(255,255,255,0.3); border-color: #fff; }
         .nav-user .logout-btn:hover { background: var(--danger); border-color: var(--danger); }
         .nav-user .login-btn:hover { background: var(--success); border-color: var(--success); }
 
@@ -226,11 +226,11 @@
             overflow-x: hidden;
         }
         
-        /* Flex Base Sidebar Component */
+        /* ----- FULL BLUE DISTRIBUTED SIDEBAR ----- */
         .sidebar {
             width: var(--sidebar-width);
-            background: var(--surface);
-            border-right: 1px solid var(--border);
+            background: #f0f4ff;
+            border-right: 1px solid #bfdbfe;
             padding: 2rem 1rem;
             display: flex;
             flex-direction: column;
@@ -245,7 +245,6 @@
             opacity: 1;
         }
         
-        /* Collapsed Structural Sidebar Class Override */
         .app-layout.sidebar-collapsed .sidebar {
             width: 0px;
             padding: 2rem 0px;
@@ -258,7 +257,7 @@
         .sidebar-heading {
             font-size: 0.75rem;
             font-weight: 700;
-            color: var(--text-muted);
+            color: #1e40af;
             text-transform: uppercase;
             letter-spacing: 0.06em;
             padding: 0.75rem 0.75rem 0.25rem 0.75rem;
@@ -273,7 +272,7 @@
             gap: 0.85rem;
             padding: 0.65rem 0.75rem;
             border-radius: var(--radius-sm);
-            color: var(--text-main);
+            color: #1e3a8a;
             font-weight: 500;
             font-size: 0.9rem;
             transition: var(--transition);
@@ -282,21 +281,32 @@
         .sidebar-link i {
             width: 1.25rem;
             text-align: center;
-            color: var(--text-muted);
+            color: #3b82f6;
             font-size: 1rem;
             transition: var(--transition);
         }
-        .sidebar-link:hover { background: var(--primary-light); color: var(--primary); }
-        .sidebar-link:hover i { color: var(--primary); }
+        .sidebar-link:hover {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .sidebar-link:hover i {
+            color: #1e40af;
+        }
         .sidebar-link.active {
-            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
             color: #fff;
             font-weight: 600;
             box-shadow: var(--shadow-sm);
         }
-        .sidebar-link.active i { color: #fff; }
+        .sidebar-link.active i {
+            color: #fff;
+        }
         
-        .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 0.75rem 0; }
+        .sidebar-divider {
+            border: none;
+            border-top: 1px solid #bfdbfe;
+            margin: 0.75rem 0;
+        }
 
         .main-content {
             flex: 1;
@@ -518,9 +528,11 @@
                     <a href="{% url 'attendance:manage_departments' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_departments' %}active{% endif %}">
                         <i class="fas fa-building"></i> Manage Departments
                     </a>
+                    <!--
                     <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i> Department Reports
                     </a>
+                    -->
                     <a href="{% url 'attendance:manage_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_teachers' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i> Teachers Directory
                     </a>

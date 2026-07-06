@@ -39,7 +39,7 @@
             --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             --nav-height: 70px;
-            --sidebar-width: 280px;
+            --sidebar-width: 320px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -374,7 +374,7 @@
 
         /* ----- Responsive Media Engine ----- */
         @media (max-width: 992px) {
-            --sidebar-width: 250px;
+            --sidebar-width: 280px;
             .main-content { padding: 2rem 1.5rem; }
         }
         @media (max-width: 768px) {
@@ -396,7 +396,7 @@
 <body>
     <nav>
         <div class="nav-brand-container">
-            {% if user.is_authenticated and user.role == 'ADMIN' or user.is_staff %}
+            {% if user.is_authenticated %}
                 <button class="desktop-toggle-btn" id="desktopSidebarToggle" title="Toggle Sidebar Menu">
                     <i class="fas fa-bars"></i>
                 </button>
@@ -447,31 +447,33 @@
             
             {% if user.is_authenticated %}
                 {% if user.role == 'ADMIN' or user.is_staff %}
-                    
                     <div class="drawer-heading">Core Intelligence</div>
                     <a href="{% url 'attendance:admin_dashboard' %}"><i class="fas fa-chart-pie"></i> Control Dashboard</a>
                     
                     <div class="drawer-heading">Academic Records</div>
-                    <!-- Department controls injected into mobile matrix array -->
-                    <a href="{% url 'attendance:admin_report_page' %}"><i class="fas fa-chart-line"></i> Admin Departmental Report</a>
+                    <a href="{% url 'attendance:manage_departments' %}"><i class="fas fa-building"></i> Manage Departments</a>
+                    <a href="{% url 'attendance:admin_report_page' %}"><i class="fas fa-chart-line"></i> Department Reports</a>
                     <a href="{% url 'attendance:manage_teachers' %}"><i class="fas fa-chalkboard-teacher"></i> Teachers Directory</a>
                     <a href="{% url 'attendance:manage_students' %}"><i class="fas fa-user-graduate"></i> Students Directory</a>
                     <a href="{% url 'attendance:manage_courses' %}"><i class="fas fa-book"></i> Courses</a>
                     <a href="{% url 'attendance:manage_course_units' %}"><i class="fas fa-layer-group"></i> Course Units</a>
                     <a href="{% url 'attendance:manage_streams' %}"><i class="fas fa-stream"></i> Academic Streams Layout</a>
                     
+                    <a href="{% url 'attendance:analytics_dashboard' %}">
+                        <i class="fas fa-chart-line"></i> Reports & Analytics
+                    </a>
                     <div class="drawer-heading">Scheduling Operations</div>
-                    <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetables</a>
+                    <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetable</a>
                     
                     <div class="drawer-heading">Bulk Data Management</div>
-                    <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Bulk Upload Courses</a>
-                    <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Bulk Upload Teachers</a>
-                    <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Bulk Upload Students</a>
+                    <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Upload Courses</a>
+                    <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Upload Teachers</a>
+                    <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Upload Students</a>
                     <a href="{% url 'attendance:bulk_upload_streams' %}"><i class="fas fa-upload"></i> Bulk Upload Streams</a>
                     
                     <div class="drawer-heading">System Export Controls</div>
-                    <a href="{% url 'attendance:export_credentials' 'teachers' %}"><i class="fas fa-download"></i> Export Teacher Logins</a>
-                    <a href="{% url 'attendance:export_credentials' 'students' %}"><i class="fas fa-download"></i> Export Student Logins</a>
+                    <a href="{% url 'attendance:export_credentials' 'teachers' %}"><i class="fas fa-download"></i> Export Teacher Credentials (.xlsx)</a>
+                    <a href="{% url 'attendance:export_credentials' 'students' %}"><i class="fas fa-download"></i> Export Student Credentials (.xlsx)</a>
                     
                     <div class="drawer-heading">Account Settings</div>
                     <a href="{% url 'attendance:change_password' %}"><i class="fas fa-key"></i> Security Settings</a>
@@ -504,21 +506,20 @@
     <div class="app-layout" id="appLayout">
         
         {% if user.is_authenticated %}
-            {% if user.role == 'ADMIN' or user.is_staff %}
-                <aside class="sidebar" id="sidebarContainer">
+            <aside class="sidebar" id="sidebarContainer">
+                {% if user.role == 'ADMIN' or user.is_staff %}
+                    <!-- Admin Sidebar -->
                     <div class="sidebar-heading">Core Intelligence</div>
                     <a href="{% url 'attendance:admin_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
                         <i class="fas fa-chart-pie"></i> Control Dashboard
                     </a>
                     
                     <div class="sidebar-heading">Academic Records</div>
-                    <!-- Department controls injected into persistent desktop sidebar view -->
-                    <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
-                        <i class="fas fa-chart-line"></i>  Admin Departmental Report
-                    </a>
-                    <!-- Department controls injected into persistent desktop sidebar view -->
                     <a href="{% url 'attendance:manage_departments' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_departments' %}active{% endif %}">
-                        <i class="fas fa-building"></i>  Departments
+                        <i class="fas fa-building"></i> Manage Departments
+                    </a>
+                    <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Department Reports
                     </a>
                     <a href="{% url 'attendance:manage_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_teachers' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i> Teachers Directory
@@ -535,23 +536,27 @@
                     <a href="{% url 'attendance:manage_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_streams' %}active{% endif %}">
                         <i class="fas fa-stream"></i> Academic Streams Layout
                     </a>
+
+                    <a href="{% url 'attendance:analytics_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'analytics_dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Reports & Analytics
+                    </a>
                     
                     <span class="sidebar-divider"></span>
                     
                     <div class="sidebar-heading">Scheduling Operations</div>
                     <a href="{% url 'attendance:upload_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_timetable' %}active{% endif %}">
-                        <i class="fas fa-calendar-alt"></i> Manage Timetables
+                        <i class="fas fa-calendar-alt"></i> Manage Timetable
                     </a>
                     
                     <div class="sidebar-heading">Bulk Data Management</div>
                     <a href="{% url 'attendance:bulk_upload_courses' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_courses' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Courses
+                        <i class="fas fa-upload"></i> Upload Courses
                     </a>
                     <a href="{% url 'attendance:bulk_upload_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_teachers' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Teachers
+                        <i class="fas fa-upload"></i> Upload Teachers
                     </a>
                     <a href="{% url 'attendance:bulk_upload_students' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_students' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Students
+                        <i class="fas fa-upload"></i> Upload Students
                     </a>
                     <a href="{% url 'attendance:bulk_upload_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_streams' %}active{% endif %}">
                         <i class="fas fa-upload"></i> Bulk Upload Streams
@@ -561,10 +566,10 @@
                     
                     <div class="sidebar-heading">System Export Controls</div>
                     <a href="{% url 'attendance:export_credentials' 'teachers' %}" class="sidebar-link">
-                        <i class="fas fa-download"></i> Export Teacher Logins
+                        <i class="fas fa-download"></i> Export Teacher Credentials (.xlsx)
                     </a>
                     <a href="{% url 'attendance:export_credentials' 'students' %}" class="sidebar-link">
-                        <i class="fas fa-download"></i> Export Student Logins
+                        <i class="fas fa-download"></i> Export Student Credentials (.xlsx)
                     </a>
 
                     <span class="sidebar-divider"></span>
@@ -572,8 +577,34 @@
                     <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">
                         <i class="fas fa-key"></i> Settings & Password
                     </a>
-                </aside>
-            {% endif %}
+
+                {% elif user.role == 'TEACHER' %}
+                    <!-- Teacher Sidebar -->
+                    <div class="sidebar-heading">Teacher Console</div>
+                    <a href="{% url 'attendance:teacher_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+                        <i class="fas fa-chalkboard-teacher"></i> Operations Hub
+                    </a>
+                    
+                    <span class="sidebar-divider"></span>
+                    <div class="sidebar-heading">Security</div>
+                    <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">
+                        <i class="fas fa-key"></i> Change Password
+                    </a>
+
+                {% elif user.role == 'STUDENT' %}
+                    <!-- Student Sidebar -->
+                    <div class="sidebar-heading">Student Portal</div>
+                    <a href="{% url 'attendance:student_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
+                        <i class="fas fa-user-graduate"></i> Status Dashboard
+                    </a>
+                    
+                    <span class="sidebar-divider"></span>
+                    <div class="sidebar-heading">Security</div>
+                    <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">
+                        <i class="fas fa-key"></i> Change Password
+                    </a>
+                {% endif %}
+            </aside>
         {% endif %}
 
         <main class="main-content">
@@ -594,7 +625,6 @@
 
     <script>
         (function() {
-            // Persistent Workspace State Logic 
             const desktopSidebarToggle = document.getElementById('desktopSidebarToggle');
             const appLayout = document.getElementById('appLayout');
 
@@ -611,7 +641,6 @@
                 });
             }
 
-            // Mobile Navigation Drawer System Event Mappings
             const hamburger = document.getElementById('hamburgerBtn');
             const drawer = document.getElementById('drawer');
             const overlay = document.getElementById('drawerOverlay');
@@ -636,7 +665,6 @@
                 if (e.key === 'Escape') closeDrawer();
             });
 
-            // Smooth Window Scroll-To-Top Component Logic
             const scrollBtn = document.getElementById('scrollTopBtn');
             window.addEventListener('scroll', function() {
                 if (window.scrollY > 300) {
@@ -649,7 +677,6 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
 
-            // Global System Live Alerts Engine
             window.showToast = function(message, type = 'info', duration = 4000) {
                 const container = document.getElementById('toastContainer');
                 if (!container) return;
