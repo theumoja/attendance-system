@@ -28,12 +28,39 @@
     /* Custom Badges */
     .badge-present { padding: 0.25rem 0.65rem; border-radius: 50px; font-size: 0.75rem; font-weight: 700; background: #10b981; color: #fff; display: inline-block; }
     .badge-absent { padding: 0.25rem 0.65rem; border-radius: 50px; font-size: 0.75rem; font-weight: 700; background: #ef4444; color: #fff; display: inline-block; }
+
+    /* Custom Sub-Toggle Classes */
+    .btn-toggle { background: var(--surface); border: 1px solid var(--border); padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--text-main); transition: all 0.2s; }
+    .btn-toggle.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 </style>
 
 <div style="margin-bottom: 1.5rem;">
     <h2><i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard</h2>
     <p style="color: var(--text-muted); font-size: 0.95rem;">Track structural class assignments, analyze student execution vectors, and submit log registers.</p>
 </div>
+
+<!-- Django Flash Notification Messages Block -->
+{% if messages %}
+<div class="container-fluid px-4 mt-3" style="margin-bottom: 1.5rem;">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'warning' %}warning{% else %}success{% endif %} alert-dismissible fade show shadow-sm border-0 d-flex align-items-center" role="alert" style="padding: 1rem; border-radius: 8px; background-color: {% if message.tags == 'error' %}#fef2f2{% elif message.tags == 'warning' %}#fffbeb{% else %}#f0fdf4{% endif %}; color: {% if message.tags == 'error' %}#991b1b{% elif message.tags == 'warning' %}#854d0e{% else %}#166534{% endif %}; margin-bottom: 1rem; position: relative;">
+        <div class="me-2" style="margin-right: 0.75rem; display: flex; align-items: center;">
+            {% if message.tags == 'success' %}
+                <i class="fas fa-check-circle fa-lg text-success" style="color: #16a34a;"></i>
+            {% elif message.tags == 'warning' %}
+                <i class="fas fa-exclamation-triangle fa-lg text-warning" style="color: #ca8a04;"></i>
+            {% else %}
+                <i class="fas fa-times-circle fa-lg text-danger" style="color: #dc2626;"></i>
+            {% endif %}
+        </div>
+        <div>
+            <strong>System Notification:</strong> {{ message }}
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); background: transparent; border: 0; cursor: pointer; font-size: 1.25rem; color: inherit; opacity: 0.5;"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 <!-- Core Summary Metrics Matrix -->
 <div class="grid-4" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
@@ -69,7 +96,6 @@
 
 <!-- Visual Data Analytics Panels -->
 <div class="grid-2" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
-    <!-- Weekly Analytics Trend Bar Chart -->
     <div class="card">
         <h3><i class="fas fa-chart-bar" style="color: var(--secondary); margin-right: 0.5rem;"></i> Weekly Attendance Trend</h3>
         <div class="chart-container-box">
@@ -77,7 +103,6 @@
         </div>
     </div>
     
-    <!-- Distribution Breakdown Component -->
     <div class="card">
         <h3><i class="fas fa-chart-pie" style="color: var(--secondary); margin-right: 0.5rem;"></i> Attendance Distribution</h3>
         <div style="display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; height: 240px; gap: 1rem;">
@@ -91,20 +116,13 @@
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
                     <span><i class="fas fa-circle" style="color:#ef4444;"></i> Absent</span><strong>{{ distribution.absent_pct }}%</strong>
                 </div>
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
-                    <span><i class="fas fa-circle" style="color:#f59e0b;"></i> Late</span><strong>{{ distribution.late_pct }}%</strong>
-                </div>
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:4px;">
-                    <span><i class="fas fa-circle" style="color:#6b7280;"></i> Excused</span><strong>{{ distribution.excused_pct }}%</strong>
-                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Content Split Layout Matrix -->
+<!-- Content Split Layout Layout -->
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; align-items: start;">
-    <!-- Recent Activity Component Log Stack -->
     <div class="card" style="height: 100%;">
         <h3><i class="fas fa-history" style="color: var(--primary); margin-right: 0.5rem;"></i> Recent Activity</h3>
         <div class="activity-timeline">
@@ -123,11 +141,9 @@
         </div>
     </div>
 
-    <!-- Quick Controls Sub-Navigation Hub -->
     <div class="card" style="height: 100%;">
         <h3><i class="fas fa-bolt" style="color: #d97706; margin-right: 0.5rem;"></i> Quick Actions</h3>
         <div class="quick-actions-grid">
-            <!-- Dynamically falls back to standard framework entry target templates -->
             <a href="#timetable-section" class="action-tile">
                 <i class="fas fa-clipboard-check"></i>
                 <span>Mark Attendance</span>
@@ -139,6 +155,29 @@
 <!-- Active Scheduled Timetable Container -->
 <div id="timetable-section" class="card" style="margin-bottom: 2rem;">
     <h3><i class="fas fa-calendar-day" style="color: var(--secondary); margin-right: 0.5rem;"></i> Active Timetable (Week starting {{ week_start|date:"Y-m-d"|default:"Active Matrix" }})</h3>
+    
+    <!-- Multi-Assignment Unit Pre-selection Block -->
+    {% if has_multiple_units %}
+    <div style="margin-bottom: 1.5rem; background: #fffbeb; border: 1px solid #fef08a; padding: 1.25rem; border-radius: 12px;">
+        <span style="font-weight: 600; font-size: 0.9rem; color: #854d0e; display: block; margin-bottom: 0.6rem;">
+            <i class="fas fa-exclamation-circle"></i> Multiple Units Assigned. You must select a Course Unit first to log attendance:
+        </span>
+        <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+            {% for cu in course_units %}
+                <!-- FIXED: Changed 'cu.id' to 'cu.code' to explicitly align with models.py -->
+                <a href="?selected_course_unit={{ cu.code }}{% if filter_dept %}&filter_dept={{ filter_dept }}{% endif %}{% if filter_course %}&filter_course={{ filter_course }}{% endif %}{% if filter_stream %}&filter_stream={{ filter_stream }}{% endif %}" 
+                   class="btn" 
+                   style="padding: 0.45rem 1rem; font-size: 0.85rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.2s;
+                          background: {% if selected_course_unit_id == cu.code %}var(--primary){% else %}#e2e8f0{% endif %}; 
+                          color: {% if selected_course_unit_id == cu.code %}#ffffff{% else %}var(--text-main){% endif %};
+                          border: 1px solid {% if selected_course_unit_id == cu.code %}var(--primary){% else %}#cbd5e1{% endif %};">
+                    {{ cu.name }}
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="table-wrapper">
         <table>
             <thead>
@@ -159,23 +198,109 @@
                     <td><span style="color: #64748b; font-weight: 600; font-size: 0.85rem;">{{ entry.course_unit.course.department.name|default:"Unassigned Department" }}</span></td>
                     <td>{{ entry.course_unit.name }}</td>
                     <td><span style="background: #f1f5f9; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ entry.stream.name }}</span></td> 
-                    <td>
-                        <a href="{% url 'attendance:mark_attendance' entry.id %}" class="btn btn-sm">
-                            <i class="fas fa-clipboard-check"></i> Mark Register
-                        </a>
+                    <td class="text-center align-middle">
+                        {% if has_multiple_units and not selected_course_unit_id %}
+                            <!-- 1. Multi-unit lockout check -->
+                            <button type="button" class="btn btn-sm" style="background-color: #cbd5e1; color: #64748b; cursor: not-allowed; border: 0; padding: 0.4rem 0.8rem; border-radius: 6px;" onclick="alert('Action Locked: Please filter by an assigned Course Unit using the selection options above before recording attendance.');">
+                                <i class="fas fa-lock"></i> Select Unit Above
+                            </button>
+                    
+                        {% elif entry.day != current_weekday_str %}
+                            <!-- 2. Wrong-day lockout check -->
+                            <button type="button" class="btn btn-sm" style="background-color: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; cursor: not-allowed; padding: 0.4rem 0.8rem; border-radius: 6px;" onclick="alert('Action Locked: This session is scheduled for {{ entry.get_day_display|default:entry.day }}. You can only record attendance on the exact day of execution.');">
+                                <i class="fas fa-calendar-times"></i> Locked Until {{ entry.get_day_display|default:entry.day }}
+                            </button>
+                    
+                        {% elif entry.id in marked_today_ids %}
+                            <!-- 3. NEW: Double-Entry Prevention Block -->
+                            <div class="d-inline-block">
+                                <button type="button" class="btn btn-sm px-3" style="background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; cursor: not-allowed; font-weight: 600; padding: 0.4rem 0.8rem; border-radius: 6px;" onclick="alert('Security Guard: Attendance records have already been captured and closed for this lecture slot today.');">
+                                    <i class="fas fa-check-double text-success"></i> Already Submitted
+                                </button>
+                                <small class="d-block text-muted mt-1" style="font-size: 0.75rem; display: block; text-align: center;">Locked today at {{ today_date }}</small>
+                            </div>
+                    
+                        {% else %}
+                            <!-- 4. Unlocked & Available to Mark Status -->
+                            <a href="{% url 'attendance:mark_attendance' entry.id %}" class="btn btn-sm btn-primary px-3 shadow-sm" style="font-weight: 500; text-decoration: none; padding: 0.4rem 0.8rem; border-radius: 6px; display: inline-block;">
+                                <i class="fas fa-clipboard-check"></i> Mark Register
+                            </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No operational scheduled configurations found.</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No operational scheduled configurations found matching your active filtering constraints.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Assigned Student Registry Base Panel -->
-<div class="card">
+<!-- Assigned Student Registry Panel -->
+<div class="card" id="detailed-reports" style="margin-bottom: 2rem;">
     <h3><i class="fas fa-users" style="color: var(--primary); margin-right: 0.5rem;"></i> Assigned Student Roster</h3>
+    
+    <form method="GET" action="#detailed-reports" id="reportFilterForm" style="margin-bottom: 1.5rem; background: var(--bg-light); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border);">
+        <input type="hidden" name="quick_range" id="quickRangeInput" value="{{ quick_range|default:'' }}">
+        <input type="hidden" name="selected_course_unit" value="{{ selected_course_unit_id|default:'' }}">
+        
+        <div class="grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Academic Department</label>
+                <select name="filter_dept" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                    <option value="">-- All Departments --</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if filter_dept == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Program Course</label>
+                <select name="filter_course" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                    <option value="">-- All Matching Courses --</option>
+                    {% for course in courses %}
+                        <option value="{{ course.code }}" {% if filter_course == course.code %}selected{% endif %}>[{{ course.code }}] {{ course.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Class Stream Scope</label>
+                <select name="filter_stream" class="filter-select" style="width: 100%; border-radius: 8px;" onchange="document.getElementById('reportFilterForm').submit();">
+                    <option value="">-- All Stream Classes --</option>
+                    {% for stream in selectable_streams %}
+                        <option value="{{ stream.id }}" {% if filter_stream == stream.id|stringformat:"s" %}selected{% endif %}>{{ stream.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-top: 1px solid var(--border); padding-top: 1.25rem;">
+            <div class="filter-group" style="display: flex; gap: 0.4rem; align-items: center;">
+                <span style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted); margin-right: 0.25rem;">Timeframe Matrix:</span>
+                <button type="button" class="btn-toggle {% if quick_range == 'today' %}active{% endif %}" onclick="setQuickRange('today')">Today</button>
+                <button type="button" class="btn-toggle {% if quick_range == 'week' %}active{% endif %}" onclick="setQuickRange('week')">This Week</button>
+                <button type="button" class="btn-toggle {% if quick_range == 'month' %}active{% endif %}" onclick="setQuickRange('month')">This Month</button>
+                <button type="button" class="btn-toggle {% if not quick_range %}active{% endif %}" onclick="setQuickRange('')">Custom Range</button>
+            </div>
+
+            <div class="filter-group" id="customDateInputs" style="{% if quick_range %}display: none;{% endif %} display: flex; align-items: center; gap: 0.5rem;">
+                <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="date-input" placeholder="Start Date">
+                <span style="color: var(--text-muted);">to</span>
+                <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="date-input" placeholder="End Date">
+            </div>
+
+            <div class="action-buttons" style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn"><i class="fas fa-filter"></i> Apply Constraints</button>
+                <!-- FIXED: Download link streams real data accurately -->
+                <a href="?export=detailed_student_csv&filter_dept={{ filter_dept|default:'' }}&filter_course={{ filter_course|default:'' }}&filter_stream={{ filter_stream|default:'' }}&start_date={{ start_date|default:'' }}&end_date={{ end_date|default:'' }}&quick_range={{ quick_range|default:'' }}&selected_course_unit={{ selected_course_unit_id|default:'' }}" class="btn" style="background-color: #047857; color: #ffffff; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <i class="fas fa-download"></i> Download Report
+                </a>
+            </div>
+        </div>
+    </form>
+
     <div class="student-list-box table-wrapper">
         <table>
             <thead>
@@ -197,17 +322,20 @@
                     <td><span style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">{{ s.stream.name }}</span></td> 
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No students assigned to your course-stream map.</td></tr> 
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No students assigned matching your active filter constraints.</td></tr> 
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Initialization Scripts for the Canvas Charts -->
 <script>
+    function setQuickRange(value) {
+        document.getElementById('quickRangeInput').value = value;
+        document.getElementById('reportFilterForm').submit();
+    }
+
     window.addEventListener('DOMContentLoaded', function() {
-        // 1. Weekly Attendance Trend Chart (Bar Mapping Matrix)
         const ctxTrend = document.getElementById('weeklyTrendChart').getContext('2d');
         new Chart(ctxTrend, {
             type: 'bar',
@@ -232,20 +360,14 @@
             }
         });
 
-        // 2. Attendance Distribution Chart (Doughnut Configuration Engine)
         const ctxPie = document.getElementById('distributionPieChart').getContext('2d');
         new Chart(ctxPie, {
             type: 'doughnut',
             data: {
-                labels: ['Present', 'Absent', 'Late', 'Excused'],
+                labels: ['Present', 'Absent'],
                 datasets: [{
-                    data: [
-                        {{ distribution.present_pct }}, 
-                        {{ distribution.absent_pct }}, 
-                        {{ distribution.late_pct }}, 
-                        {{ distribution.excused_pct }}
-                    ],
-                    backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
+                    data: [{{ distribution.present_pct }}, {{ distribution.absent_pct }}],
+                    backgroundColor: ['#10b981', '#ef4444'],
                     borderWidth: 2,
                     borderColor: '#ffffff'
                 }]
@@ -253,9 +375,7 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
+                plugins: { legend: { display: false } },
                 cutout: '70%'
             }
         });

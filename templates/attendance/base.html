@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,11 +10,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
     <style>
         /* ----- CSS Variables ----- */
         :root {
             --primary: #0f3b3e;
-            --primary-dark: #082b2e;
+            --primary-dark: #094a68 ;
             --primary-light: #e6f4f1;
             --secondary: #2c6e6b;
             --accent: #3b82f6;
@@ -28,7 +32,7 @@
             --bg-main: #f1f5f9;
             --surface: #ffffff;
             --surface-hover: #f8fafc;
-            --text-main: #0f172a;
+            --text-main: #144b83;
             --text-muted: #64748b;
             --border: #e2e8f0;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
@@ -60,9 +64,9 @@
         ::-webkit-scrollbar-track { background: var(--bg-main); }
         ::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 10px; }
 
-        /* ----- Navbar with deep professional blue gradient ----- */
+        /* ----- Navbar with solid #094a68 ----- */
         nav {
-            background: linear-gradient(135deg, #0a1128 0%, #101f42 25%, #1e3a8a 65%, #3b82f6 100%);
+            background: #094a68;  /* changed to full solid color */
             color: #fff;
             padding: 0 2rem;
             height: var(--nav-height);
@@ -190,7 +194,7 @@
             background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 999; opacity: 0; transition: opacity 0.3s ease;
         }
         .drawer-overlay.active { display: block; opacity: 1; }
-        
+
         .drawer {
             position: fixed; top: 0; left: -340px; width: 320px; height: 100%;
             background: var(--surface); box-shadow: var(--shadow-lg); z-index: 1001;
@@ -202,7 +206,7 @@
         .drawer .close-btn:hover { color: var(--danger); transform: rotate(90deg); }
         .drawer .drawer-brand { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); cursor: pointer; }
         .drawer .drawer-brand i { color: var(--primary); }
-        
+
         .drawer .drawer-links { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; }
         .drawer .drawer-heading { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 1rem 0.75rem 0.25rem 0.75rem; }
         .drawer .drawer-links a { padding: 0.65rem 0.75rem; border-radius: var(--radius-sm); color: var(--text-main); font-weight: 500; font-size: 0.9rem; transition: var(--transition); display: flex; align-items: center; gap: 0.85rem; }
@@ -210,7 +214,7 @@
         .drawer .drawer-links a i { width: 1.25rem; text-align: center; color: var(--text-muted); font-size: 1rem; }
         .drawer .drawer-links a.active { background: linear-gradient(135deg, var(--secondary), var(--primary)); color: #fff; font-weight: 600; }
         .drawer .drawer-links a.active i { color: #fff; }
-        
+
         .drawer .drawer-user { border-top: 1px solid var(--border); padding-top: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
         .drawer .drawer-user .user-info { font-weight: 500; color: var(--text-main); }
         .drawer .drawer-user .logout-btn { padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 600; font-size: 0.85rem; background: var(--danger); color: #fff; border: none; transition: var(--transition); cursor: pointer; }
@@ -225,7 +229,7 @@
             position: relative;
             overflow-x: hidden;
         }
-        
+
         /* ----- FULL BLUE DISTRIBUTED SIDEBAR ----- */
         .sidebar {
             width: var(--sidebar-width);
@@ -244,7 +248,7 @@
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease, opacity 0.2s ease;
             opacity: 1;
         }
-        
+
         .app-layout.sidebar-collapsed .sidebar {
             width: 0px;
             padding: 2rem 0px;
@@ -253,7 +257,7 @@
             opacity: 0;
             pointer-events: none;
         }
-        
+
         .sidebar-heading {
             font-size: 0.75rem;
             font-weight: 700;
@@ -265,7 +269,7 @@
             white-space: nowrap;
         }
         .sidebar-heading:first-of-type { margin-top: 0; }
-        
+
         .sidebar-link {
             display: flex;
             align-items: center;
@@ -301,7 +305,7 @@
         .sidebar-link.active i {
             color: #fff;
         }
-        
+
         .sidebar-divider {
             border: none;
             border-top: 1px solid #bfdbfe;
@@ -402,8 +406,7 @@
             .nav-user .user-greeting { display: none; }
         }
     </style>
-</head>
-<body>
+
     <nav>
         <div class="nav-brand-container">
             {% if user.is_authenticated %}
@@ -475,16 +478,6 @@
                     <div class="drawer-heading">Scheduling Operations</div>
                     <a href="{% url 'attendance:upload_timetable' %}"><i class="fas fa-calendar-alt"></i> Manage Timetable</a>
                     
-                    <div class="drawer-heading">Bulk Data Management</div>
-                    <a href="{% url 'attendance:bulk_upload_courses' %}"><i class="fas fa-upload"></i> Upload Courses</a>
-                    <a href="{% url 'attendance:bulk_upload_teachers' %}"><i class="fas fa-upload"></i> Upload Teachers</a>
-                    <a href="{% url 'attendance:bulk_upload_students' %}"><i class="fas fa-upload"></i> Upload Students</a>
-                    <a href="{% url 'attendance:bulk_upload_streams' %}"><i class="fas fa-upload"></i> Bulk Upload Streams</a>
-                    
-                    <div class="drawer-heading">System Export Controls</div>
-                    <a href="{% url 'attendance:export_credentials' 'teachers' %}"><i class="fas fa-download"></i> Export Teacher Credentials (.xlsx)</a>
-                    <a href="{% url 'attendance:export_credentials' 'students' %}"><i class="fas fa-download"></i> Export Student Credentials (.xlsx)</a>
-                    
                     <div class="drawer-heading">Account Settings</div>
                     <a href="{% url 'attendance:change_password' %}"><i class="fas fa-key"></i> Security Settings</a>
                 {% endif %}
@@ -528,11 +521,6 @@
                     <a href="{% url 'attendance:manage_departments' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_departments' %}active{% endif %}">
                         <i class="fas fa-building"></i> Manage Departments
                     </a>
-                    <!--
-                    <a href="{% url 'attendance:admin_report_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_report_page' %}active{% endif %}">
-                        <i class="fas fa-chart-line"></i> Department Reports
-                    </a>
-                    -->
                     <a href="{% url 'attendance:manage_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_teachers' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i> Teachers Directory
                     </a>
@@ -560,30 +548,6 @@
                         <i class="fas fa-calendar-alt"></i> Manage Timetable
                     </a>
                     
-                    <div class="sidebar-heading">Bulk Data Management</div>
-                    <a href="{% url 'attendance:bulk_upload_courses' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_courses' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Upload Courses
-                    </a>
-                    <a href="{% url 'attendance:bulk_upload_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_teachers' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Upload Teachers
-                    </a>
-                    <a href="{% url 'attendance:bulk_upload_students' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_students' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Upload Students
-                    </a>
-                    <a href="{% url 'attendance:bulk_upload_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'bulk_upload_streams' %}active{% endif %}">
-                        <i class="fas fa-upload"></i> Bulk Upload Streams
-                    </a>
-                    
-                    <span class="sidebar-divider"></span>
-                    
-                    <div class="sidebar-heading">System Export Controls</div>
-                    <a href="{% url 'attendance:export_credentials' 'teachers' %}" class="sidebar-link">
-                        <i class="fas fa-download"></i> Export Teacher Credentials (.xlsx)
-                    </a>
-                    <a href="{% url 'attendance:export_credentials' 'students' %}" class="sidebar-link">
-                        <i class="fas fa-download"></i> Export Student Credentials (.xlsx)
-                    </a>
-
                     <span class="sidebar-divider"></span>
                     <div class="sidebar-heading">Security</div>
                     <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">

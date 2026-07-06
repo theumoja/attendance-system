@@ -30,44 +30,310 @@ def home(request):
         return redirect('attendance:student_dashboard')
 
 
+import csv
+import json
+from datetime import datetime
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db.models import Count, Q
+
+# Import all models from models.py
+from attendance.models import (
+    User, 
+    Department, 
+    Course, 
+    Stream, 
+    CourseUnit, 
+    TeacherProfile, 
+    StudentProfile, 
+    TimetableBatch, 
+    TimetableEntry, 
+    AttendanceSession, 
+    AttendanceRecord
+)
+
+@login_required
+def teacher_dashboard(request):
+    """
+    Comprehensive Teacher Dashboard processing live operational summaries,
+    geospatial session distributions, activity matrices, and dynamic tracking feeds.
+    """
+    # 1. Structural Role Verification
+    if request.user.role != User.IS_TEACHER:
+        return HttpResponse("Unauthorized", status=403)
+        
+    if not hasattr(request.user, 'teacher_profile') or request.user.teacher_profile is None:
+        return HttpResponse("Teacher Profile configuration missing.", status=404)
+        
+    teacher = request.user.teacher_profile
+    
+    # 2. Base Domain Querysets
+    timetable = TimetableEntry.objects.filter(
+        batch__is_active=True, teacher=teacher
+    ).select_related('course_unit__course__department', 'batch', 'stream')
+    
+    course_units = CourseUnit.objects.filter(timetableentry__teacher=teacher).distinct()
+    
+    # --- Multi-Course Assignment Enforcement Guard ---
+    has_multiple_units = course_units.count() > 1
+    selected_course_unit_id = request.GET.get('selected_course_unit', '')
+    
+    # If the user has multiple units, narrow down the unlocked entries if a selection is made
+    if has_multiple_units and selected_course_unit_id:
+        timetable = timetable.filter(course_unit_id=selected_course_unit_id)
+        
+    # 3. Extract Filter Parameters from GET for Student Roster
+    filter_dept = request.GET.get('filter_dept', '')
+    filter_course = request.GET.get('filter_course', '')
+    filter_stream = request.GET.get('filter_stream', '')
+    quick_range = request.GET.get('quick_range', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    
+    # Using 'entries' backward relation lookup because of related_name='entries' in models.py
+    selectable_streams = Stream.objects.filter(entries__teacher=teacher).distinct()
+    
+    distinct_courses = set()
+    distinct_depts = set()
+    for cu in course_units:
+        if hasattr(cu, 'course') and cu.course:
+            distinct_courses.add(cu.course)
+            if hasattr(cu.course, 'department') and cu.course.department:
+                distinct_depts.add(cu.course.department)
+                
+    departments = list(distinct_depts)
+    courses = list(distinct_courses)
+    
+    # 4. Apply Context Criteria Filters on Assigned Student Roster
+    students = StudentProfile.objects.filter(course__units__in=course_units).distinct()
+    
+    if filter_dept:
+        students = students.filter(course__department_id=filter_dept)
+    if filter_course:
+        students = students.filter(course__code=filter_course)
+    if filter_stream:
+        students = students.filter(stream_id=filter_stream)
+
+    # --- Live Download Data Streaming Channel Interceptor ---
+    if request.GET.get('export') == 'detailed_student_csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="student_attendance_roster_{datetime.now().strftime("%Y%m%d")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Registration Identification', 'Full Name', 'Department Scope', 'Academic Program Track', 'Class Stream'])
+        
+        for s in students:
+            dept_name = s.course.department.name if s.course.department else "General Academics"
+            stream_name = s.stream.name if s.stream else "Unassigned"
+            writer.writerow([s.reg_number, s.name, dept_name, s.course.name, stream_name])
+            
+        return response
+        
+    total_students_count = students.count()
+    active_classes_count = TimetableEntry.objects.filter(batch__is_active=True, teacher=teacher).values('stream').distinct().count()
+    
+    # Resolve weekday value to look up systemic locks
+    weekday_map = {0: 'MON', 1: 'TUE', 2: 'WED', 3: 'THU', 4: 'FRI', 5: 'SAT', 6: 'SUN'}
+    current_weekday_str = weekday_map[datetime.now().weekday()]
+    
+    todays_sessions = TimetableEntry.objects.filter(batch__is_active=True, teacher=teacher, day=current_weekday_str)
+    todays_sessions_count = todays_sessions.count()
+    
+    # 5. Compute Aggregate Global Attendance Rates
+    total_records = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher)
+    total_records_count = total_records.count()
+    present_records_count = total_records.filter(status='PRESENT').count()
+    absent_records_count = total_records.filter(status='ABSENT').count()
+    
+    global_attendance_rate = round((present_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0
+    
+    # 6. Generate Weekly Attendance Trend Matrix
+    weekly_trend_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+    weekly_trend_rates = []
+    for day_code in ['MON', 'TUE', 'WED', 'THU', 'FRI']:
+        day_total = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher, session__timetable_entry__day=day_code).count()
+        day_present = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher, session__timetable_entry__day=day_code, status='PRESENT').count()
+        day_rate = round((day_present / day_total) * 100, 1) if day_total > 0 else 0
+        weekly_trend_rates.append(day_rate)
+
+    # 7. Compile Distribution Analytics Dataset
+    distribution_metrics = {
+        'present_pct': round((present_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0,
+        'absent_pct': round((absent_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0,
+        'late_pct': 0,
+        'custom_range': 0
+    }
+    
+    # 8. Build Recent Timeline Activity Stream
+    recent_sessions = AttendanceSession.objects.filter(timetable_entry__teacher=teacher).select_related('timetable_entry__stream').order_by('-id')[:5]
+    recent_activity_feed = []
+    for session in recent_sessions:
+        p_count = session.records.filter(status='PRESENT').count()
+        a_count = session.records.filter(status='ABSENT').count()
+        time_str = datetime.now().strftime("%H:%M")
+        recent_activity_feed.append({
+            'stream_name': session.timetable_entry.stream.name if session.timetable_entry.stream else "Unknown Session",
+            'present': p_count,
+            'absent': a_count,
+            'time': time_str
+        })
+
+    unit_stats = []
+    for cu in course_units:
+        p = AttendanceRecord.objects.filter(session__timetable_entry__course_unit=cu, session__timetable_entry__teacher=teacher, status='PRESENT').count()
+        t = AttendanceRecord.objects.filter(session__timetable_entry__course_unit=cu, session__timetable_entry__teacher=teacher).count()
+        r = round((p / t) * 100, 1) if t > 0 else 0
+        unit_stats.append({'name': cu.name, 'rate': r})
+        
+    unit_names = [u['name'] for u in unit_stats]
+    unit_rates = [u['rate'] for u in unit_stats]
+
+    week_start = None
+    base_timetable = TimetableEntry.objects.filter(batch__is_active=True, teacher=teacher)
+    active_batch = base_timetable.first().batch if base_timetable.exists() else None
+    if active_batch:
+        week_start = active_batch.week_start_date
+
+    # 9. Identify Timetable Entries Already Marked Today to Prevent Duplicates
+    today_date = datetime.now().date()
+    marked_today_ids = list(
+        AttendanceSession.objects.filter(
+            timetable_entry__teacher=teacher,
+            date_marked=today_date
+        ).values_list('timetable_entry_id', flat=True)
+    )
+
+    context = {
+        'timetable': timetable,
+        'students': students,
+        'course_units': course_units,
+        'departments': departments,
+        'courses': courses,
+        'selectable_streams': selectable_streams,
+        'unit_names': json.dumps(unit_names),
+        'unit_rates': json.dumps(unit_rates),
+        'week_start': week_start,
+        
+        # Duplicate Prevention State Tracker
+        'marked_today_ids': marked_today_ids,
+        
+        # Filtering State Retainers
+        'filter_dept': filter_dept,
+        'filter_course': filter_course,
+        'filter_stream': filter_stream,
+        'quick_range': quick_range,
+        'start_date': start_date,
+        'end_date': end_date,
+        
+        # Course Unit Toggle State
+        'has_multiple_units': has_multiple_units,
+        'selected_course_unit_id': selected_course_unit_id,
+        'current_weekday_str': current_weekday_str,
+        
+        # Summary Counters
+        'total_students_count': total_students_count,
+        'active_classes_count': active_classes_count,
+        'todays_sessions_count': todays_sessions_count,
+        'global_attendance_rate': global_attendance_rate,
+        'weekly_trend_labels': json.dumps(weekly_trend_labels),
+        'weekly_trend_rates': json.dumps(weekly_trend_rates),
+        'distribution': distribution_metrics,
+        'recent_activity_feed': recent_activity_feed
+    }
+    return render(request, 'attendance/teacher_dashboard.html', context)
+
+
+from datetime import datetime
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import HttpResponse
+from .models import User, TimetableEntry, AttendanceSession, StudentProfile, AttendanceRecord
+
 @login_required
 def mark_attendance(request, entry_id):
-    # Authorization check
-    if not hasattr(request.user, 'teacher_profile') or request.user.teacher_profile is None:
+    """
+    Renders the student attendance sheet for a valid timetable lecture slot 
+    and saves submitted student records while ensuring security controls are met.
+    """
+    # 1. Base Guard Validation Rules
+    if request.user.role != User.IS_TEACHER:
         return HttpResponse("Unauthorized", status=403)
-
-    entry = get_object_or_404(TimetableEntry, id=entry_id, teacher=request.user.teacher_profile)
+        
+    teacher = request.user.teacher_profile
+    entry = get_object_or_404(TimetableEntry, id=entry_id, batch__is_active=True)
     
-    # Filters roster strictly to students belonging to this precise stream
-    students = StudentProfile.objects.filter(stream=entry.stream)
+    # Ownership Check: Confirm this specific teacher owns this timetable entry
+    if entry.teacher != teacher:
+        return HttpResponse("Unauthorized: You are not assigned to this lecture slot.", status=403)
+        
+    # Day Check: Validate that the teacher is accessing this on the scheduled day
+    weekday_map = {0: 'MON', 1: 'TUE', 2: 'WED', 3: 'THU', 4: 'FRI', 5: 'SAT', 6: 'SUN'}
+    current_weekday_str = weekday_map[datetime.now().weekday()]
+    if entry.day != current_weekday_str:
+        messages.error(request, f"Access Locked: This session is scheduled for {entry.get_day_display()}. You can only record attendance on the exact day of execution.")
+        return redirect('attendance:teacher_dashboard')
+        
+    # Duplicate Prevention Check: Notify and block if the lesson has already been submitted today
+    today_date = datetime.now().date()
+    session_exists = AttendanceSession.objects.filter(timetable_entry=entry, date_marked=today_date).exists()
+    if session_exists:
+        messages.warning(
+            request, 
+            f"Notification: Attendance records have already been captured and closed for the "
+            f"{entry.course_unit.name} ({entry.stream.name}) lecture slot scheduled today."
+        )
+        return redirect('attendance:teacher_dashboard')
 
+    # Fetch all students registered under this stream class layout
+    students = StudentProfile.objects.filter(stream=entry.stream).order_by('name')
+
+    # 2. Processing POST Submissions (Now capturing native form payloads perfectly)
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            lat = data.get('latitude')
-            lng = data.get('longitude')
-            records = data.get('records', {})
+        # Double-check right before database writes to prevent race conditions or form resubmissions
+        if AttendanceSession.objects.filter(timetable_entry=entry, date_marked=today_date).exists():
+            messages.error(request, "Submission Rejected: This attendance register was already saved by another request.")
+            return redirect('attendance:teacher_dashboard')
 
-            session = AttendanceSession.objects.create(
-                timetable_entry=entry,
-                teacher_latitude=lat,
-                teacher_longitude=lng
+        # Read and sanitize coordinates safely from the native form submission [source: 2]
+        lat_raw = request.POST.get('latitude')
+        lng_raw = request.POST.get('longitude')
+        
+        # Ensure empty form strings switch cleanly to None to avoid DB validation type crashes
+        lat = lat_raw.strip() if lat_raw and lat_raw.strip() else None
+        lng = lng_raw.strip() if lng_raw and lng_raw.strip() else None
+        
+        # Instantiate parent Session entry
+        session = AttendanceSession.objects.create(
+            timetable_entry=entry,
+            teacher_latitude=lat,
+            teacher_longitude=lng
+        )
+        
+        # Write individual student rows
+        for student in students:
+            # Captures standard field parameters format: name="student_{{ s.reg_number }}" [source: 2]
+            # Default fallback state is set to 'ABSENT' if unselected or missing
+            status = request.POST.get(f'student_{student.reg_number}', 'ABSENT')
+            
+            AttendanceRecord.objects.create(
+                session=session,
+                student=student,
+                status=status
             )
+            
+        messages.success(request, f"Attendance successfully saved and locked for {entry.course_unit.name} ({entry.stream.name}).")
+        return redirect('attendance:teacher_dashboard')
 
-            for student_reg, status in records.items():
-                student = StudentProfile.objects.get(reg_number=student_reg)
-                AttendanceRecord.objects.create(session=session, student=student, status=status)
-
-            # Redirect to the home view – it will send teachers to the teacher dashboard
-            return JsonResponse({
-                'status': 'success',
-                'redirect_url': reverse('attendance:home')
-            })
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
-    return render(request, 'attendance/mark_attendance.html', {'entry': entry, 'students': students})
-    
+    # 3. Processing GET Requests (Render standard list layout)
+    context = {
+        'entry': entry,
+        'students': students,
+        'today_date': today_date
+    }
+    return render(request, 'attendance/mark_attendance.html', context)
 
 @login_required
 def student_dashboard(request):
@@ -290,142 +556,8 @@ def download_attendance_card(request):
     response.write(pdf_output)
     return response
 
-from django.shortcuts import render, redirect
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
-import json
-from datetime import datetime
-from attendance.models import User, TimetableEntry, StudentProfile, AttendanceSession, AttendanceRecord, CourseUnit, Stream
 
-@login_required
-def teacher_dashboard(request):
-    """
-    Comprehensive Teacher Dashboard processing live operational summaries,
-    geospatial session distributions, activity matrices, and dynamic tracking feeds.
-    """
-    if request.user.role != User.IS_TEACHER:
-        return HttpResponse("Unauthorized", status=403)
-        
-    # Extract the foundational profile context
-    if not hasattr(request.user, 'teacher_profile') or request.user.teacher_profile is None:
-        return HttpResponse("Teacher Profile configuration missing.", status=404)
-        
-    teacher = request.user.teacher_profile
-    
-    # 1. Base Domain Querysets
-    timetable = TimetableEntry.objects.filter(
-        batch__is_active=True, teacher=teacher
-    ).select_related('course_unit__course__department', 'batch', 'stream')
-    
-    course_units = CourseUnit.objects.filter(timetableentry__teacher=teacher).distinct()
-    
-    # 2. Compute Core Metric Indicators Matrix
-    # Total unique students matching the lecturer's course-stream combinations
-    students = StudentProfile.objects.filter(course__units__in=course_units).distinct()
-    total_students_count = students.count()
-    
-    # Active distinct stream classes mapped to this lecturer
-    active_classes_count = timetable.values('stream').distinct().count()
-    
-    # Resolve the weekday value to match system constants based on current date
-    # System current context timestamp validation path: 2026-07-03 (Friday)
-    weekday_map = {0: 'MON', 1: 'TUE', 2: 'WED', 3: 'THU', 4: 'FRI', 5: 'SAT', 6: 'SUN'}
-    current_weekday_str = weekday_map[datetime.now().weekday()]
-    
-    todays_sessions = timetable.filter(day=current_weekday_str)
-    todays_sessions_count = todays_sessions.count()
-    
-    # 3. Compute Aggregate Global Attendance Rates
-    total_records = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher)
-    total_records_count = total_records.count()
-    present_records_count = total_records.filter(status='PRESENT').count()
-    absent_records_count = total_records.filter(status='ABSENT').count()
-    
-    global_attendance_rate = round((present_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0
-    
-    # 4. Generate Weekly Attendance Trend Matrix (Mon-Fri Execution Profile)
-    weekly_trend_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-    weekly_trend_rates = []
-    
-    for day_code in ['MON', 'TUE', 'WED', 'THU', 'FRI']:
-        day_total = AttendanceRecord.objects.filter(
-            session__timetable_entry__teacher=teacher,
-            session__timetable_entry__day=day_code
-        ).count()
-        day_present = AttendanceRecord.objects.filter(
-            session__timetable_entry__teacher=teacher,
-            session__timetable_entry__day=day_code,
-            status='PRESENT'
-        ).count()
-        
-        day_rate = round((day_present / day_total) * 100, 1) if day_total > 0 else 0
-        weekly_trend_rates.append(day_rate)
 
-    # 5. Compile Distribution Analytics Dataset
-    # Model maps PRESENT/ABSENT natively. Remaining conditions default safely.
-    distribution_metrics = {
-        'present_pct': round((present_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0,
-        'absent_pct': round((absent_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0,
-        'late_pct': 0,
-        'excused_pct': 0
-    }
-    
-    # 6. Build Recent Timeline Activity Stream
-    recent_sessions = AttendanceSession.objects.filter(
-        timetable_entry__teacher=teacher
-    ).select_related('timetable_entry__stream').order_by('-id')[:5]
-    
-    recent_activity_feed = []
-    for session in recent_sessions:
-        p_count = session.records.filter(status='PRESENT').count()
-        a_count = session.records.filter(status='ABSENT').count()
-        
-        # Format submission time value
-        time_str = datetime.now().strftime("%H:%M") # Graceful fallback execution
-        
-        recent_activity_feed.append({
-            'stream_name': session.timetable_entry.stream.name if session.timetable_entry.stream else "Unknown Session",
-            'present': p_count,
-            'absent': a_count,
-            'time': time_str
-        })
-
-    # 7. Fallback processing for traditional baseline dashboard modules
-    unit_stats = []
-    for cu in course_units:
-        p = AttendanceRecord.objects.filter(session__timetable_entry__course_unit=cu, session__timetable_entry__teacher=teacher, status='PRESENT').count()
-        t = AttendanceRecord.objects.filter(session__timetable_entry__course_unit=cu, session__timetable_entry__teacher=teacher).count()
-        r = round((p / t) * 100, 1) if t > 0 else 0
-        unit_stats.append({'name': cu.name, 'rate': r})
-        
-    unit_names = [u['name'] for u in unit_stats]
-    unit_rates = [u['rate'] for u in unit_stats]
-
-    week_start = None
-    active_batch = timetable.first().batch if timetable else None
-    if active_batch:
-        week_start = active_batch.week_start_date
-
-    context = {
-        'timetable': timetable,
-        'students': students,
-        'course_units': course_units,
-        'unit_names': json.dumps(unit_names),
-        'unit_rates': json.dumps(unit_rates),
-        'week_start': week_start,
-        
-        # New Enhanced UI Interface Context
-        'total_students_count': total_students_count,
-        'active_classes_count': active_classes_count,
-        'todays_sessions_count': todays_sessions_count,
-        'global_attendance_rate': global_attendance_rate,
-        'weekly_trend_labels': json.dumps(weekly_trend_labels),
-        'weekly_trend_rates': json.dumps(weekly_trend_rates),
-        'distribution': distribution_metrics,
-        'recent_activity_feed': recent_activity_feed
-    }
-    return render(request, 'attendance/teacher_dashboard.html', context)
 
 @login_required
 def download_student_report(request):

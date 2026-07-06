@@ -746,57 +746,106 @@ def bulk_upload_students(request):
         return redirect('attendance:export_credentials', role_type='students')
     return render(request, 'attendance/upload_students.html')
 
+import json
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.contrib import messages
+from datetime import datetime
+from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
+
 @login_required
 @transaction.atomic
 def upload_timetable(request):
+    batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first()
+    if not batch:
+        batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
+
+    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK]
+
     if request.method == 'POST':
-        use_last = request.POST.get('use_last_one') == 'true'
+        TimetableEntry.objects.filter(batch=batch).delete()
+        
+        row_indices = request.POST.getlist('row_index')
+        saved_count = 0
+        
+        for index in row_indices:
+            start_str = request.POST.get(f'start_time_{index}')
+            end_str = request.POST.get(f'end_time_{index}')
+            
+            if not start_str or not end_str:
+                continue
+                
+            start_t = datetime.strptime(start_str, '%H:%M').time()
+            end_t = datetime.strptime(end_str, '%H:%M').time()
+            
+            if start_t >= end_t:
+                continue
 
-        if use_last:
-            last_batch = TimetableBatch.objects.filter(is_revoked=False).order_by('-uploaded_at')[:1]
-            if last_batch:
-                TimetableBatch.objects.filter(is_active=True).update(is_active=False)
-                new_batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
-                for entry in last_batch[0].entries.all():
+            for day in DAYS:
+                cu_id = request.POST.get(f'cu_{index}_{day}')  # This is the string code (e.g., 'CS101')
+                teacher_id = request.POST.get(f'teacher_{index}_{day}')
+                stream_id = request.POST.get(f'stream_{index}_{day}')
+                
+                if cu_id and teacher_id and stream_id:
                     TimetableEntry.objects.create(
-                        batch=new_batch, day=entry.day, start_time=entry.start_time,
-                        end_time=entry.end_time, course_unit=entry.course_unit,
-                        teacher=entry.teacher, stream=entry.stream
+                        batch=batch, day=day, start_time=start_t, end_time=end_t,
+                        course_unit_id=cu_id,  # FIXED: Removed int() wrapper because it's a string code primary key
+                        teacher_id=int(teacher_id), stream_id=int(stream_id)
                     )
-                return redirect('attendance:admin_dashboard')
+                    saved_count += 1
+        
+        if saved_count > 0:
+            messages.success(request, f"Timetable saved successfully! {saved_count} classes have been scheduled.")
+        else:
+            messages.warning(request, "Timetable cleared. No classes were saved because selections were left incomplete.")
+            
+        return redirect('attendance:upload_timetable')
 
-        csv_file = request.FILES.get('csv_file')
-        if csv_file:
-            TimetableBatch.objects.filter(is_active=True).update(is_active=False)
-            new_batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
-            decoded_file = csv_file.read().decode('utf-8')
-            reader = csv.reader(io.StringIO(decoded_file), delimiter=',')
-            next(reader, None)
+    # --- GET Processing ---
+    entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time')
+    grouped_slots = {}
+    for entry in entries:
+        time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M'))
+        if time_key not in grouped_slots:
+            grouped_slots[time_key] = {}
+        grouped_slots[time_key][entry.day] = entry
 
-            for row in reader:
-                if len(row) >= 6:
-                    day, start_t, end_t, cu_code, teacher_email, stream_name = row
-                    try:
-                        cu = CourseUnit.objects.get(code=cu_code.strip())
-                        teacher = TeacherProfile.objects.get(user__email=teacher_email.strip())
-                        
-                        from attendance.models import Stream
-                        stream_obj, _ = Stream.objects.get_or_create(
-                            name=stream_name.strip(),
-                            course=cu.course
-                        )
-                        
-                        TimetableEntry.objects.create(
-                            batch=new_batch, day=day.strip(),
-                            start_time=datetime.strptime(start_t.strip(), '%H:%M').time(),
-                            end_time=datetime.strptime(end_t.strip(), '%H:%M').time(),
-                            course_unit=cu, teacher=teacher, stream=stream_obj
-                        )
-                    except (CourseUnit.DoesNotExist, TeacherProfile.DoesNotExist, ValueError):
-                        continue
-            return redirect('attendance:admin_dashboard')
+    matrix_rows = []
+    for idx, ((start, end), day_map) in enumerate(grouped_slots.items()):
+        ordered_slots = []
+        for day in DAYS:
+            ordered_slots.append({
+                'day_code': day,
+                'entry': day_map.get(day)
+            })
+        matrix_rows.append({
+            'index': idx,
+            'start': start,
+            'end': end,
+            'slots': ordered_slots
+        })
 
-    return render(request, 'attendance/upload_timetable.html')
+    # FIXED: Map indexed cleanly by cu.code instead of cu.id
+    cu_lecturer_map = {}
+    for cu in CourseUnit.objects.all():
+        teachers = TeacherProfile.objects.filter(courses=cu.course)
+        if not teachers.exists():
+            teachers = TeacherProfile.objects.all()
+            
+        cu_lecturer_map[str(cu.code)] = [
+            {'id': t.id, 'name': t.name} for t in teachers
+        ]
+
+    context = {
+        'matrix_rows': matrix_rows,
+        'days': TimetableEntry.DAYS_OF_WEEK,
+        'course_units': CourseUnit.objects.all(),
+        'streams': Stream.objects.all(),
+        'cu_lecturer_map_json': json.dumps(cu_lecturer_map),
+    }
+    return render(request, 'attendance/upload_timetable.html', context)
+
 
 
 def download_template(request, template_type):
