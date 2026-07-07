@@ -80,4 +80,5 @@ urlpatterns = [
 
     path('departments/add/', views_admin.add_department, name='add_department'),
     path('analytics/', views_admin.analytics_dashboard, name='analytics_dashboard'),
+    path('admin-ui/upload/timetable/pdf/', views_admin.export_timetable_pdf, name='export_timetable_pdf'),
 ]

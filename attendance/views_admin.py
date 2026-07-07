@@ -753,22 +753,33 @@ from django.db import transaction
 from django.contrib import messages
 from datetime import datetime
 from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
+import json
+import json
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.contrib import messages
+from datetime import datetime
+from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
 
 @login_required
 @transaction.atomic
 def upload_timetable(request):
+    # Retrieve or initialize the single master schedule batch
     batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first()
     if not batch:
         batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
 
-    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK]
+    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK] # ['MON', 'TUE', 'WED', ...]
 
     if request.method == 'POST':
+        # 1. Clear all existing rows under this master batch to prepare for a full form overwrite
         TimetableEntry.objects.filter(batch=batch).delete()
         
         row_indices = request.POST.getlist('row_index')
         saved_count = 0
         
+        # 2. Iterate through every time interval row submitted from the matrix form
         for index in row_indices:
             start_str = request.POST.get(f'start_time_{index}')
             end_str = request.POST.get(f'end_time_{index}')
@@ -782,28 +793,32 @@ def upload_timetable(request):
             if start_t >= end_t:
                 continue
 
+            # 3. For each row, check every day column coordinate cell
             for day in DAYS:
-                cu_id = request.POST.get(f'cu_{index}_{day}')  # This is the string code (e.g., 'CS101')
-                teacher_id = request.POST.get(f'teacher_{index}_{day}')
-                stream_id = request.POST.get(f'stream_{index}_{day}')
+                cu_code = request.POST.get(f'cu_{index}_{day}')      # String Primary Key
+                teacher_id = request.POST.get(f'teacher_{index}_{day}')  # Int Primary Key
+                stream_id = request.POST.get(f'stream_{index}_{day}')    # Int Primary Key
                 
-                if cu_id and teacher_id and stream_id:
+                # Only create an entry if the entire coordination slot is completed
+                if cu_code and teacher_id and stream_id:
                     TimetableEntry.objects.create(
-                        batch=batch, day=day, start_time=start_t, end_time=end_t,
-                        course_unit_id=cu_id,  # FIXED: Removed int() wrapper because it's a string code primary key
-                        teacher_id=int(teacher_id), stream_id=int(stream_id)
+                        batch=batch, 
+                        day=day, 
+                        start_time=start_t, 
+                        end_time=end_t,
+                        course_unit_id=cu_code,  # Matches models.py char code PK
+                        teacher_id=int(teacher_id), 
+                        stream_id=int(stream_id)
                     )
                     saved_count += 1
         
-        if saved_count > 0:
-            messages.success(request, f"Timetable saved successfully! {saved_count} classes have been scheduled.")
-        else:
-            messages.warning(request, "Timetable cleared. No classes were saved because selections were left incomplete.")
-            
+        messages.success(request, f"Timetable synchronized successfully! {saved_count} assigned slots are active.")
         return redirect('attendance:upload_timetable')
 
-    # --- GET Processing ---
+    # --- GET: Render the Current Matrix State ---
     entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time')
+    
+    # Restructure individual records back into a structured 2D table layout
     grouped_slots = {}
     for entry in entries:
         time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M'))
@@ -826,12 +841,12 @@ def upload_timetable(request):
             'slots': ordered_slots
         })
 
-    # FIXED: Map indexed cleanly by cu.code instead of cu.id
+    # Generate lookups mapping course units to qualified instructors
     cu_lecturer_map = {}
     for cu in CourseUnit.objects.all():
         teachers = TeacherProfile.objects.filter(courses=cu.course)
         if not teachers.exists():
-            teachers = TeacherProfile.objects.all()
+            teachers = TeacherProfile.objects.all()  # Fallback: display all if unassigned
             
         cu_lecturer_map[str(cu.code)] = [
             {'id': t.id, 'name': t.name} for t in teachers
@@ -2254,3 +2269,126 @@ def analytics_dashboard(request):
         'stream_rates': json.dumps(stream_rates),
     }
     return render(request, 'attendance/analytics_dashboard.html', context)
+
+
+
+from django.http import HttpResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from .models import TimetableBatch, TimetableEntry
+
+@login_required
+def export_timetable_pdf(request):
+    """
+    Generates a formal landscape PDF matrix tracking the current 
+    active master schedule layout configurations.
+    """
+    # 1. Fetch the exact same active master batch as the editor view
+    batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first() #
+    if not batch:
+        messages.warning(request, "No active timetable configuration was found to generate a document.")
+        return redirect('attendance:upload_timetable')
+        
+    # 2. Initialize HTTP Response object configured as PDF payload stream
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="timetable_batch_{batch.id}.pdf"' #
+    
+    # Setup document geometry in landscape format to accommodate the 7 day tracks
+    doc = SimpleDocTemplate(
+        response, 
+        pagesize=landscape(letter), 
+        rightMargin=30, 
+        leftMargin=30, 
+        topMargin=35, 
+        bottomMargin=30
+    )
+    story = []
+    
+    # 3. Setup Layout Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor('#2b3e85'),
+        alignment=1, # Centered alignment
+        spaceAfter=15
+    )
+    
+    cell_text_style = ParagraphStyle(
+        'MatrixCell',
+        parent=styles['Normal'],
+        fontSize=7.5,
+        leading=10,
+        alignment=1 # Center text wrapped within table nodes
+    )
+    
+    header_style = ParagraphStyle(
+        'MatrixHeader',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=12,
+        fontName='Helvetica-Bold',
+        textColor=colors.whitesmoke,
+        alignment=1
+    )
+    
+    # Document header markup text block
+    formatted_date = batch.week_start_date.strftime('%B %d, %Y') #
+    story.append(Paragraph(f"MASTER TIMETABLE SCHEDULE GRID", title_style))
+    story.append(Paragraph(f"Active Schedule Target Cycle — Week Commencing: {formatted_date}", ParagraphStyle('Sub', alignment=1, fontSize=10, textColor=colors.HexColor('#475569'))))
+    story.append(Spacer(1, 20))
+    
+    # 4. Extract and Group DB Matrix Entries (identical workflow as editor GET request)
+    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK] #
+    headers = [Paragraph("Time Block Interval", header_style)] + [Paragraph(name, header_style) for _, name in TimetableEntry.DAYS_OF_WEEK] #
+    
+    entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time') #
+    grouped_slots = {}
+    for entry in entries: #
+        time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M')) #
+        if time_key not in grouped_slots:
+            grouped_slots[time_key] = {}
+        grouped_slots[time_key][entry.day] = entry #
+        
+    matrix_data = [headers]
+    
+    # Build structural rows tracking each unique coordinate matrix node cell block
+    for (start, end), day_map in grouped_slots.items():
+        row_cells = [Paragraph(f"<b>{start} - {end}</b>", cell_text_style)]
+        
+        for day_code in DAYS:
+            entry = day_map.get(day_code)
+            if entry:
+                # Text structural wrapping to safely output multi-line labels inside table cell nodes
+                cell_content = f"<b>{entry.course_unit.code}</b><br/>{entry.teacher.name}<br/><font color='#475569'>{entry.stream.name}</font>" #
+                row_cells.append(Paragraph(cell_content, cell_text_style))
+            else:
+                row_cells.append(Paragraph("<font color='#cbd5e1'>—</font>", cell_text_style))
+                
+        matrix_data.append(row_cells)
+        
+    # Calculate geometric column constraints to match page printable canvas space boundaries
+    # Printable horizontal target width: 792 (landscape width) - 60 (margins) = 732 points total
+    col_widths = [90] + [91] * 7 
+    
+    timetable_table = Table(matrix_data, colWidths=col_widths, repeatRows=1)
+    timetable_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2b3e85')), # Match original navy headers
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')), # Subtle structural slate boundaries
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    
+    story.append(timetable_table)
+    
+    # 5. Compile payload contents out to the client download pipeline stream
+    doc.build(story)
+    return response
