@@ -290,7 +290,7 @@ def manage_students(request):
     return render(request, 'attendance/manage_students.html', {
         'students': students,
         'active_courses_list': courses,
-        'active_streams_list': streams
+        'streams': streams
     })
 
 @login_required
@@ -520,100 +520,46 @@ def delete_course(request, pk):
 # =========================================================================
 # 4. COURSE UNITS MANAGEMENT
 # =========================================================================
+
 @login_required
 @transaction.atomic
 def manage_course_units(request):
-    print(f"\n--- [DEBUG] Enter manage_course_units View ---")
-    print(f"[DEBUG] Request Method: {request.method} | User: {request.user.username} | Role: {getattr(request.user, 'role', 'None')}")
-
-    # 1. Authorization Guard
     if request.user.role != User.IS_ADMIN:
-        print(f"[DEBUG] Access Denied: User role {request.user.role} is not IS_ADMIN.")
         return HttpResponse("Unauthorized", status=403)
 
-    # 2. Handle Form Submissions
     if request.method == 'POST':
         action = request.POST.get('action')
-        print(f"[DEBUG] POST Action received: '{action}'")
         
-        # --- SINGLE COURSE UNIT CREATION / UPDATE ---
         if action == 'single' or 'course_unit_code' in request.POST:
-            print(f"[DEBUG] Routing to SINGLE course unit processing")
             code = (request.POST.get('course_unit_code') or request.POST.get('code', '')).strip()
             name = (request.POST.get('course_unit_name') or request.POST.get('name', '')).strip()
             course_code = request.POST.get('course_code', '').strip()
             
-            print(f"[DEBUG] Parsed Single Data -> Code: '{code}', Name: '{name}', Parent Course Code: '{course_code}'")
-
             if code and name and course_code:
                 try:
                     course = Course.objects.get(code=course_code)
-                    print(f"[DEBUG] Found parent Course instance PK '{course.pk}' for code '{course_code}'")
-                    
-                    obj, created = CourseUnit.objects.update_or_create(
-                        code=code, 
-                        defaults={'name': name, 'course': course}
-                    )
-                    
-                    if created:
-                        print(f"[DEBUG] SUCCESS: Created NEW CourseUnit PK '{obj.pk}' (Code: {code})")
-                        messages.success(request, f"Unit module '{code}' created and linked directly to parent.")
-                    else:
-                        print(f"[DEBUG] SUCCESS: UPDATED existing CourseUnit PK '{obj.pk}' (Code: {code})")
-                        messages.success(request, f"Unit module '{code}' successfully updated.")
-                        
+                    CourseUnit.objects.get_or_create(code=code, defaults={'name': name, 'course': course})
+                    messages.success(request, f"Unit module '{code}' linked directly to parent.")
                 except Course.DoesNotExist:
-                    print(f"[DEBUG] ERROR: Parent Course with code '{course_code}' does not exist in database.")
                     messages.error(request, "Failed addition: Specified Parent Course doesn't exist.")
-            else:
-                print(f"[DEBUG] ERROR: Validation failed. One or more required fields were evaluated as empty strings.")
-                messages.error(request, "Failed addition: Missing required fields.")
-                
             return redirect('attendance:manage_course_units')
 
-        # --- BULK CSV UPLOAD ---
         elif action == 'bulk' and request.FILES.get('csv_file'):
             csv_file = request.FILES['csv_file']
-            print(f"[DEBUG] Routing to BULK CSV processing. File name: '{csv_file.name}'")
-            
             decoded_file = csv_file.read().decode('utf-8')
             reader = csv.reader(io.StringIO(decoded_file), delimiter=',')
-            next(reader, None)  # Skip CSV header row
+            next(reader, None)
 
-            saved_count = 0
-            failed_rows = []
-
-            for index, row in enumerate(reader, start=2):
+            for row in reader:
                 if len(row) >= 4:
-                    c_code = row[0].strip()
-                    cu_code = row[2].strip()
-                    cu_name = row[3].strip()
-                    
-                    if not c_code or not cu_code or not cu_name:
-                        failed_rows.append(f"Row {index} (Missing fields)")
-                        continue
-
+                    c_code, _, cu_code, cu_name = row[0].strip(), row[1].strip(), row[2].strip(), row[3].strip()
                     try:
                         course = Course.objects.get(code=c_code)
-                        CourseUnit.objects.update_or_create(
-                            code=cu_code, 
-                            defaults={'name': cu_name, 'course': course}
-                        )
-                        saved_count += 1
+                        CourseUnit.objects.get_or_create(code=cu_code, defaults={'name': cu_name, 'course': course})
                     except Course.DoesNotExist:
-                        failed_rows.append(f"Row {index} (Course code '{c_code}' not found)")
                         continue
-                else:
-                    failed_rows.append(f"Row {index} (Malformed column structure)")
-
-            if saved_count > 0:
-                messages.success(request, f"Successfully processed {saved_count} course unit(s).")
-            if failed_rows:
-                messages.error(request, f"Skipped rows due to errors: {', '.join(failed_rows)}")
-
             return redirect('attendance:manage_course_units')
 
-    # 3. Handle GET Request / Fetch View Context
     course_units = CourseUnit.objects.select_related('course').all()
     courses = Course.objects.all()
     
@@ -626,8 +572,6 @@ def manage_course_units(request):
         'courses': courses,
         'active_courses_list': courses
     })
-
-
 
 @login_required
 @transaction.atomic
@@ -802,121 +746,57 @@ def bulk_upload_students(request):
         return redirect('attendance:export_credentials', role_type='students')
     return render(request, 'attendance/upload_students.html')
 
-import json
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.contrib import messages
-from datetime import datetime
-from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
-import json
-import json
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.contrib import messages
-from datetime import datetime
-from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
-
 @login_required
 @transaction.atomic
 def upload_timetable(request):
-    # Retrieve or initialize the single master schedule batch
-    batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first()
-    if not batch:
-        batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
-
-    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK] # ['MON', 'TUE', 'WED', ...]
-
     if request.method == 'POST':
-        # 1. Clear all existing rows under this master batch to prepare for a full form overwrite
-        TimetableEntry.objects.filter(batch=batch).delete()
-        
-        row_indices = request.POST.getlist('row_index')
-        saved_count = 0
-        
-        # 2. Iterate through every time interval row submitted from the matrix form
-        for index in row_indices:
-            start_str = request.POST.get(f'start_time_{index}')
-            end_str = request.POST.get(f'end_time_{index}')
-            
-            if not start_str or not end_str:
-                continue
-                
-            start_t = datetime.strptime(start_str, '%H:%M').time()
-            end_t = datetime.strptime(end_str, '%H:%M').time()
-            
-            if start_t >= end_t:
-                continue
+        use_last = request.POST.get('use_last_one') == 'true'
 
-            # 3. For each row, check every day column coordinate cell
-            for day in DAYS:
-                cu_code = request.POST.get(f'cu_{index}_{day}')      # String Primary Key
-                teacher_id = request.POST.get(f'teacher_{index}_{day}')  # Int Primary Key
-                stream_id = request.POST.get(f'stream_{index}_{day}')    # Int Primary Key
-                
-                # Only create an entry if the entire coordination slot is completed
-                if cu_code and teacher_id and stream_id:
+        if use_last:
+            last_batch = TimetableBatch.objects.filter(is_revoked=False).order_by('-uploaded_at')[:1]
+            if last_batch:
+                TimetableBatch.objects.filter(is_active=True).update(is_active=False)
+                new_batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
+                for entry in last_batch[0].entries.all():
                     TimetableEntry.objects.create(
-                        batch=batch, 
-                        day=day, 
-                        start_time=start_t, 
-                        end_time=end_t,
-                        course_unit_id=cu_code,  # Matches models.py char code PK
-                        teacher_id=int(teacher_id), 
-                        stream_id=int(stream_id)
+                        batch=new_batch, day=entry.day, start_time=entry.start_time,
+                        end_time=entry.end_time, course_unit=entry.course_unit,
+                        teacher=entry.teacher, stream=entry.stream
                     )
-                    saved_count += 1
-        
-        messages.success(request, f"Timetable synchronized successfully! {saved_count} assigned slots are active.")
-        return redirect('attendance:upload_timetable')
+                return redirect('attendance:admin_dashboard')
 
-    # --- GET: Render the Current Matrix State ---
-    entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time')
-    
-    # Restructure individual records back into a structured 2D table layout
-    grouped_slots = {}
-    for entry in entries:
-        time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M'))
-        if time_key not in grouped_slots:
-            grouped_slots[time_key] = {}
-        grouped_slots[time_key][entry.day] = entry
+        csv_file = request.FILES.get('csv_file')
+        if csv_file:
+            TimetableBatch.objects.filter(is_active=True).update(is_active=False)
+            new_batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
+            decoded_file = csv_file.read().decode('utf-8')
+            reader = csv.reader(io.StringIO(decoded_file), delimiter=',')
+            next(reader, None)
 
-    matrix_rows = []
-    for idx, ((start, end), day_map) in enumerate(grouped_slots.items()):
-        ordered_slots = []
-        for day in DAYS:
-            ordered_slots.append({
-                'day_code': day,
-                'entry': day_map.get(day)
-            })
-        matrix_rows.append({
-            'index': idx,
-            'start': start,
-            'end': end,
-            'slots': ordered_slots
-        })
+            for row in reader:
+                if len(row) >= 6:
+                    day, start_t, end_t, cu_code, teacher_email, stream_name = row
+                    try:
+                        cu = CourseUnit.objects.get(code=cu_code.strip())
+                        teacher = TeacherProfile.objects.get(user__email=teacher_email.strip())
+                        
+                        from attendance.models import Stream
+                        stream_obj, _ = Stream.objects.get_or_create(
+                            name=stream_name.strip(),
+                            course=cu.course
+                        )
+                        
+                        TimetableEntry.objects.create(
+                            batch=new_batch, day=day.strip(),
+                            start_time=datetime.strptime(start_t.strip(), '%H:%M').time(),
+                            end_time=datetime.strptime(end_t.strip(), '%H:%M').time(),
+                            course_unit=cu, teacher=teacher, stream=stream_obj
+                        )
+                    except (CourseUnit.DoesNotExist, TeacherProfile.DoesNotExist, ValueError):
+                        continue
+            return redirect('attendance:admin_dashboard')
 
-    # Generate lookups mapping course units to qualified instructors
-    cu_lecturer_map = {}
-    for cu in CourseUnit.objects.all():
-        teachers = TeacherProfile.objects.filter(courses=cu.course)
-        if not teachers.exists():
-            teachers = TeacherProfile.objects.all()  # Fallback: display all if unassigned
-            
-        cu_lecturer_map[str(cu.code)] = [
-            {'id': t.id, 'name': t.name} for t in teachers
-        ]
-
-    context = {
-        'matrix_rows': matrix_rows,
-        'days': TimetableEntry.DAYS_OF_WEEK,
-        'course_units': CourseUnit.objects.all(),
-        'streams': Stream.objects.all(),
-        'cu_lecturer_map_json': json.dumps(cu_lecturer_map),
-    }
-    return render(request, 'attendance/upload_timetable.html', context)
-
+    return render(request, 'attendance/upload_timetable.html')
 
 
 def download_template(request, template_type):
@@ -1185,9 +1065,6 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from django.core.exceptions import FieldError
 
-# Assuming your models are imported like this:
-# from .models import User, Department, Course, Stream, StudentProfile, AttendanceRecord, AttendanceSession
-
 @login_required
 def analytics_dashboard(request):
     # Enforce strict Admin-only access rule matrix
@@ -1227,12 +1104,12 @@ def analytics_dashboard(request):
         start_date = today - timedelta(days=30)
         end_date = today
     else:
-        if start_date_str:
+        if start_date_str and start_date_str != 'None':
             try:
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             except ValueError:
                 pass
-        if end_date_str:
+        if end_date_str and end_date_str != 'None':
             try:
                 end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             except ValueError:
@@ -1322,7 +1199,7 @@ def analytics_dashboard(request):
 
     # Location Log Parsing
     audit_logs = []
-    for session in sessions[:20]:
+    for session in sessions:
         t_entry = session.timetable_entry
         has_coords = session.teacher_latitude is not None and session.teacher_longitude is not None
         location_str = f"{session.teacher_latitude}, {session.teacher_longitude}" if has_coords else "Not captured"
@@ -1335,17 +1212,25 @@ def analytics_dashboard(request):
             "verified": has_coords  
         })
 
-    # Standard Top-20 Matrix Ingestion 
-    students = StudentProfile.objects.select_related('stream').annotate(
-        total_rec=Count('attendancerecord'),
-        present_rec=Count('attendancerecord', filter=Q(attendancerecord__status='PRESENT')),
-        absent_rec=Count('attendancerecord', filter=Q(attendancerecord__status='ABSENT'))
-    ).filter(total_rec__gt=0)
+    # Standard Student Metrics (Synchronized with global filter rules)
+    students_queryset = StudentProfile.objects.select_related('stream').annotate(
+        total_rec=Count('attendancerecord', filter=record_date_filter),
+        present_rec=Count('attendancerecord', filter=record_date_filter & Q(attendancerecord__status='PRESENT')),
+        absent_rec=Count('attendancerecord', filter=record_date_filter & Q(attendancerecord__status='ABSENT'))
+    )
     
+    if filter_stream:
+        students_queryset = students_queryset.filter(stream_id=filter_stream)
+    elif filter_course:
+        students_queryset = students_queryset.filter(course__code=filter_course)
+    elif filter_dept:
+        students_queryset = students_queryset.filter(course__department_id=filter_dept)
+
     students_raw = []
-    for s in students:
-        p_rate = (s.present_rec / s.total_rec) * 100
-        a_rate = (s.absent_rec / s.total_rec) * 100
+    for s in students_queryset:
+        tot = s.total_rec
+        p_rate = (s.present_rec / tot) * 100 if tot > 0 else 0.0
+        a_rate = (s.absent_rec / tot) * 100 if tot > 0 else 0.0
         students_raw.append({
             "name": s.name,
             "reg": s.reg_number,
@@ -1356,25 +1241,54 @@ def analytics_dashboard(request):
             "a_rate": f"{round(a_rate, 1)}%"
         })
     
-    top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)[:20]
-    top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)[:20]
+    # Returns ALL records organized cleanly descending
+    top_present_students = sorted(students_raw, key=lambda x: x['p_rate_num'], reverse=True)
+    top_absent_students = sorted(students_raw, key=lambda x: x['a_rate_num'], reverse=True)
 
-    # 7. ADDED/UPDATED: Lecturer Attendance Submission Compliance Report Scope Filtering
+    # 7. RESILIENT CASCADING LOGIC FOR LECTURER COMPLIANCE REPORT
     TimetableEntry = AttendanceSession._meta.get_field('timetable_entry').related_model
     
     compliance_sessions = AttendanceSession.objects.all()
     timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
     
-    # Apply structural Department, Course, and Stream scope constraints dynamically
     if filter_stream:
         compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=filter_stream)
         timetable_entries = timetable_entries.filter(stream_id=filter_stream)
     elif filter_course:
-        compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__code=filter_course)
-        timetable_entries = timetable_entries.filter(stream__course__code=filter_course)
+        try:
+            compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__code=filter_course)
+            timetable_entries = timetable_entries.filter(stream__course__code=filter_course)
+        except Exception:
+            try:
+                compliance_sessions = compliance_sessions.filter(timetable_entry__course__code=filter_course)
+                timetable_entries = timetable_entries.filter(course__code=filter_course)
+            except Exception:
+                pass
     elif filter_dept:
-        compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__department_id=filter_dept)
-        timetable_entries = timetable_entries.filter(stream__course__department_id=filter_dept)
+        try:
+            compliance_sessions = compliance_sessions.filter(timetable_entry__stream__course__department_id=filter_dept)
+            timetable_entries = timetable_entries.filter(stream__course__department_id=filter_dept)
+            if not timetable_entries.exists():
+                raise FieldError()
+        except (FieldError, Exception):
+            try:
+                compliance_sessions = AttendanceSession.objects.filter(timetable_entry__course__department_id=filter_dept)
+                timetable_entries = TimetableEntry.objects.select_related('teacher__user').filter(course__department_id=filter_dept)
+                if not timetable_entries.exists():
+                    raise FieldError()
+            except (FieldError, Exception):
+                try:
+                    compliance_sessions = AttendanceSession.objects.filter(
+                        Q(timetable_entry__teacher__department_id=filter_dept) | 
+                        Q(timetable_entry__teacher__user__department_id=filter_dept)
+                    )
+                    timetable_entries = TimetableEntry.objects.select_related('teacher__user').filter(
+                        Q(teacher__department_id=filter_dept) | 
+                        Q(teacher__user__department_id=filter_dept)
+                    )
+                except (FieldError, Exception):
+                    compliance_sessions = AttendanceSession.objects.all()
+                    timetable_entries = TimetableEntry.objects.select_related('teacher__user').all()
 
     if selected_stream_id and selected_stream_id != 'all':
         compliance_sessions = compliance_sessions.filter(timetable_entry__stream_id=selected_stream_id)
@@ -1394,10 +1308,10 @@ def analytics_dashboard(request):
             rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
             teachers_raw.append({'email': email, 'submitted': submitted, 'rate': f"{rate}%"})
 
-    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
-    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
+    # Returns ALL matching lecturers sorted cleanly descending/ascending
+    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)
+    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)
 
-    # Chart Generation Data Processing
     chart_dist_data = [present_count, absent_count]
     streams_data = Stream.objects.annotate(
         total=Count('students__attendancerecord'),
@@ -1420,7 +1334,6 @@ def analytics_dashboard(request):
         'stream_labels': json.dumps(stream_labels),
         'stream_rates': json.dumps(stream_rates),
         
-        # Detailed reporting fields context
         'departments': all_departments,
         'courses': selectable_courses,
         'selectable_streams': selectable_streams,
@@ -1676,8 +1589,8 @@ def analytics_dashboard(request):
             rate = round((submitted / total_system_sessions) * 100, 1) if total_system_sessions > 0 else 0
             teachers_raw.append({'email': email, 'submitted': submitted, 'rate': f"{rate}%"})
 
-    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)[:20]
-    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)[:20]
+    top_submitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=True)#[:20]
+    top_unsubmitted_teachers = sorted(teachers_raw, key=lambda x: x['submitted'], reverse=False)#[:20]
 
     # Chart Generation Visual Processing Data Arrays
     chart_dist_data = [present_count, absent_count]
@@ -2325,126 +2238,3 @@ def analytics_dashboard(request):
         'stream_rates': json.dumps(stream_rates),
     }
     return render(request, 'attendance/analytics_dashboard.html', context)
-
-
-
-from django.http import HttpResponse
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from .models import TimetableBatch, TimetableEntry
-
-@login_required
-def export_timetable_pdf(request):
-    """
-    Generates a formal landscape PDF matrix tracking the current 
-    active master schedule layout configurations.
-    """
-    # 1. Fetch the exact same active master batch as the editor view
-    batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first() #
-    if not batch:
-        messages.warning(request, "No active timetable configuration was found to generate a document.")
-        return redirect('attendance:upload_timetable')
-        
-    # 2. Initialize HTTP Response object configured as PDF payload stream
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="timetable_batch_{batch.id}.pdf"' #
-    
-    # Setup document geometry in landscape format to accommodate the 7 day tracks
-    doc = SimpleDocTemplate(
-        response, 
-        pagesize=landscape(letter), 
-        rightMargin=30, 
-        leftMargin=30, 
-        topMargin=35, 
-        bottomMargin=30
-    )
-    story = []
-    
-    # 3. Setup Layout Styles
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        leading=22,
-        textColor=colors.HexColor('#2b3e85'),
-        alignment=1, # Centered alignment
-        spaceAfter=15
-    )
-    
-    cell_text_style = ParagraphStyle(
-        'MatrixCell',
-        parent=styles['Normal'],
-        fontSize=7.5,
-        leading=10,
-        alignment=1 # Center text wrapped within table nodes
-    )
-    
-    header_style = ParagraphStyle(
-        'MatrixHeader',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=12,
-        fontName='Helvetica-Bold',
-        textColor=colors.whitesmoke,
-        alignment=1
-    )
-    
-    # Document header markup text block
-    formatted_date = batch.week_start_date.strftime('%B %d, %Y') #
-    story.append(Paragraph(f"MASTER TIMETABLE SCHEDULE GRID", title_style))
-    story.append(Paragraph(f"Active Schedule Target Cycle — Week Commencing: {formatted_date}", ParagraphStyle('Sub', alignment=1, fontSize=10, textColor=colors.HexColor('#475569'))))
-    story.append(Spacer(1, 20))
-    
-    # 4. Extract and Group DB Matrix Entries (identical workflow as editor GET request)
-    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK] #
-    headers = [Paragraph("Time Block Interval", header_style)] + [Paragraph(name, header_style) for _, name in TimetableEntry.DAYS_OF_WEEK] #
-    
-    entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time') #
-    grouped_slots = {}
-    for entry in entries: #
-        time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M')) #
-        if time_key not in grouped_slots:
-            grouped_slots[time_key] = {}
-        grouped_slots[time_key][entry.day] = entry #
-        
-    matrix_data = [headers]
-    
-    # Build structural rows tracking each unique coordinate matrix node cell block
-    for (start, end), day_map in grouped_slots.items():
-        row_cells = [Paragraph(f"<b>{start} - {end}</b>", cell_text_style)]
-        
-        for day_code in DAYS:
-            entry = day_map.get(day_code)
-            if entry:
-                # Text structural wrapping to safely output multi-line labels inside table cell nodes
-                cell_content = f"<b>{entry.course_unit.code}</b><br/>{entry.teacher.name}<br/><font color='#475569'>{entry.stream.name}</font>" #
-                row_cells.append(Paragraph(cell_content, cell_text_style))
-            else:
-                row_cells.append(Paragraph("<font color='#cbd5e1'>—</font>", cell_text_style))
-                
-        matrix_data.append(row_cells)
-        
-    # Calculate geometric column constraints to match page printable canvas space boundaries
-    # Printable horizontal target width: 792 (landscape width) - 60 (margins) = 732 points total
-    col_widths = [90] + [91] * 7 
-    
-    timetable_table = Table(matrix_data, colWidths=col_widths, repeatRows=1)
-    timetable_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2b3e85')), # Match original navy headers
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')), # Subtle structural slate boundaries
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    
-    story.append(timetable_table)
-    
-    # 5. Compile payload contents out to the client download pipeline stream
-    doc.build(story)
-    return response
