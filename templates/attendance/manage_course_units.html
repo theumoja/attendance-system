@@ -124,10 +124,14 @@
 </style>
 
 <div class="page-header-actions">
-    <div>
+    <div style="display: flex; gap: 1rem; align-items: center; flex: 1; flex-wrap: wrap;">
         <a href="{% url 'attendance:download_template' 'timetable' %}" class="btn-download-list">
             <i class="fas fa-download"></i> Export Structural Units
         </a>
+        <div style="position: relative; min-width: 260px; flex: 1; max-width: 400px;">
+            <i class="fas fa-search" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+            <input type="text" id="dashboardSearch" class="form-control" placeholder="Search unit code, assignment title..." style="padding-left: 2.25rem;">
+        </div>
     </div>
 
     <div class="action-group">
@@ -157,8 +161,8 @@
             </tr>
         </thead>
         <tbody id="courseUnitsTableBody">
-            {% for unit in course_units %}  <!-- corrected variable name -->
-            <tr data-parent-course="{{ unit.course.code }}">
+            {% for unit in course_units %}
+            <tr class="unit-row" data-parent-course="{{ unit.course.code }}">
                 <td><code style="font-size:0.95rem; font-weight:700; color:var(--text-main);">{{ unit.code }}</code></td>
                 <td style="font-weight:500;">{{ unit.name }}</td>
                 <td><span class="parent-course-badge"><i class="fas fa-graduation-cap" style="font-size:0.8rem; margin-right:0.35rem; color:#2563eb;"></i>{{ unit.course.code }}</span></td>
@@ -185,6 +189,12 @@
                     No sub-units found assigned directly underneath this tracking index block.
                 </td>
             </tr>
+            <tr id="searchEmptyRow" style="display:none;">
+                <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                    No matching course units discovered for your filter criteria.
+                </td>
+            </tr>
         </tbody>
     </table>
 </div>
@@ -197,9 +207,7 @@
         </div>
         <form method="POST" action="">
             {% csrf_token %}
-            
             <input type="hidden" name="action" value="single">
-        
             <div class="form-group">
                 <label for="unit_code">Course Unit Code</label>
                 <input type="text" id="unit_code" name="course_unit_code" class="form-control" required placeholder="e.g. DCT213">
@@ -227,47 +235,29 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Modal Window Actions
         const modal = document.getElementById('singleAddModal');
         const openBtn = document.getElementById('openModalBtn');
         const closeBtn = document.getElementById('closeModalBtn');
         const cancelBtn = document.getElementById('cancelModalBtn');
 
-        openBtn.addEventListener('click', () => modal.classList.add('active'));
+        if(openBtn) openBtn.addEventListener('click', () => modal.classList.add('active'));
         const closeModal = () => modal.classList.remove('active');
         
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
+        if(closeBtn) closeBtn.addEventListener('click', closeModal);
+        if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
 
-        // Parsing active filter rules from query strings parameters
+        // Parse query strings instructions 
         const searchParams = new URLSearchParams(window.location.search);
         const targetCourseFilter = searchParams.get('filter_course');
+        const normalizedTarget = targetCourseFilter ? targetCourseFilter.trim().toUpperCase() : null;
 
-        if (targetCourseFilter) {
-            const normalizedTarget = targetCourseFilter.trim().toUpperCase();
+        if (normalizedTarget) {
             const filterBox = document.getElementById('activeFilterWindow');
             const codeLabel = document.getElementById('filterCourseTargetCode');
-            const rows = document.querySelectorAll('#courseUnitsTableBody tr:not(#noFilteredResultsRow)');
-            const fallbackRow = document.getElementById('noFilteredResultsRow');
-            
-            let visibleRowCount = 0;
-
             codeLabel.textContent = normalizedTarget;
             filterBox.style.display = 'flex';
-
-            rows.forEach(row => {
-                const rowParent = row.getAttribute('data-parent-course').trim().toUpperCase();
-                if (rowParent === normalizedTarget) {
-                    row.style.display = '';
-                    visibleRowCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-
-            if (visibleRowCount === 0 && rows.length > 0) {
-                fallbackRow.style.display = 'table-row';
-            }
             
             const parentSelector = document.getElementById('parent_course');
             if (parentSelector) {
@@ -278,6 +268,55 @@
                     }
                 }
             }
+        }
+
+        // Unified Frontend Search & URL Isolation Architecture Engine
+        const searchInput = document.getElementById('dashboardSearch');
+        const dataRows = document.querySelectorAll('.unit-row');
+        const urlFallbackRow = document.getElementById('noFilteredResultsRow');
+        const searchFallbackRow = document.getElementById('searchEmptyRow');
+
+        function processUnifiedFilters() {
+            const searchCriteria = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            let validUrlParamCount = 0;
+            let finalMatchingCount = 0;
+
+            dataRows.forEach(row => {
+                const rowParent = row.getAttribute('data-parent-course').trim().toUpperCase();
+                const fitsUrlConstraint = !normalizedTarget || (rowParent === normalizedTarget);
+                
+                if (fitsUrlConstraint) {
+                    validUrlParamCount++;
+                    const searchableText = row.textContent.toLowerCase();
+                    
+                    if (searchableText.includes(searchCriteria)) {
+                        row.style.display = '';
+                        finalMatchingCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Orchestrate empty fallback state visibility cleanly
+            if (normalizedTarget && validUrlParamCount === 0) {
+                if (urlFallbackRow) urlFallbackRow.style.display = '';
+                if (searchFallbackRow) searchFallbackRow.style.display = 'none';
+            } else {
+                if (urlFallbackRow) urlFallbackRow.style.display = 'none';
+                if (searchFallbackRow) {
+                    searchFallbackRow.style.display = (finalMatchingCount === 0 && dataRows.length > 0) ? '' : 'none';
+                }
+            }
+        }
+
+        // Run initially to respect pre-existing URL rules
+        processUnifiedFilters();
+
+        if (searchInput) {
+            searchInput.addEventListener('input', processUnifiedFilters);
         }
     });
 </script>

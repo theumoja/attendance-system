@@ -73,8 +73,12 @@
 </style>
 
 <div class="page-header-actions">
-    <div>
+    <div style="display: flex; gap: 1rem; align-items: center; flex: 1; flex-wrap: wrap;">
+        <div style="position: relative; min-width: 260px; flex: 1; max-width: 400px;">
+            <i class="fas fa-search" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+            <input type="text" id="dashboardSearch" class="form-control" placeholder="Search stream identifier, framework track..." style="padding-left: 2.25rem;">
         </div>
+    </div>
 
     <div class="action-group">
         <button class="btn btn-outline" onclick="location.href='{% url 'attendance:bulk_upload_streams' %}'">
@@ -105,9 +109,9 @@
                 <th style="text-align: right;">Execution Parameters</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="streamsTableBody">
             {% for stream in streams %}
-            <tr>
+            <tr class="stream-row">
                 <td><code style="font-size:1rem; font-weight:700; color:var(--text-main);">{{ stream.name }}</code></td>
                 <td style="font-weight: 500;">{{ stream.course.code }} - {{ stream.course.name }}</td>
                 <td style="text-align: right;">
@@ -127,6 +131,12 @@
                 </td>
             </tr>
             {% endfor %}
+            <tr id="searchEmptyRow" style="display: none;">
+                <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                    No matching academic streams discovered for your filter criteria.
+                </td>
+            </tr>
         </tbody>
     </table>
 </div>
@@ -173,6 +183,32 @@
         if(closeBtn) closeBtn.addEventListener('click', closeModal);
         if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+
+        // Automated Frontend Search Matrix
+        const searchInput = document.getElementById('dashboardSearch');
+        const dataRows = document.querySelectorAll('.stream-row');
+        const emptyRow = document.getElementById('searchEmptyRow');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const criteria = this.value.toLowerCase().trim();
+                let matchingCount = 0;
+
+                dataRows.forEach(row => {
+                    const searchableText = row.textContent.toLowerCase();
+                    if (searchableText.includes(criteria)) {
+                        row.style.display = '';
+                        matchingCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                if (emptyRow) {
+                    emptyRow.style.display = (matchingCount === 0 && dataRows.length > 0) ? '' : 'none';
+                }
+            });
+        }
     });
 </script>
 

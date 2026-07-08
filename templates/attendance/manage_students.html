@@ -112,10 +112,14 @@
 </style>
 
 <div class="page-header-actions">
-    <div>
+    <div style="display: flex; gap: 1rem; align-items: center; flex: 1; flex-wrap: wrap;">
         <a href="{% url 'attendance:export_credentials' 'students' %}" class="btn-download-list">
             <i class="fas fa-download"></i> Export Student Directory
         </a>
+        <div style="position: relative; min-width: 260px; flex: 1; max-width: 400px;">
+            <i class="fas fa-search" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+            <input type="text" id="dashboardSearch" class="form-control" placeholder="Search registration, name, course..." style="padding-left: 2.25rem;">
+        </div>
     </div>
 
     <div class="action-group">
@@ -150,9 +154,9 @@
                 <th style="text-align: right;">Operations Matrix</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="studentTableBody">
             {% for student in students %}
-            <tr>
+            <tr class="student-row">
                 <td><strong style="color:var(--text-main);">{{ student.reg_number }}</strong></td>
                 <td>{{ student.name }}</td>
                 <td><span class="course-tag">{{ student.course.code }}</span></td>
@@ -175,6 +179,12 @@
                 </td>
             </tr>
             {% endfor %}
+            <tr id="searchEmptyRow" style="display: none;">
+                <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                    No matching student listings discovered for your filter criteria.
+                </td>
+            </tr>
         </tbody>
     </table>
 </div>
@@ -228,6 +238,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Modal Logic Layout
         const modal = document.getElementById('singleAddModal');
         const openBtn = document.getElementById('openModalBtn');
         const closeBtn = document.getElementById('closeModalBtn');
@@ -239,6 +250,33 @@
         if(closeBtn) closeBtn.addEventListener('click', closeModal);
         if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+
+        // Automated Frontend Search Matrix
+        const searchInput = document.getElementById('dashboardSearch');
+        const dataRows = document.querySelectorAll('.student-row');
+        const emptyRow = document.getElementById('searchEmptyRow');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const criteria = this.value.toLowerCase().trim();
+                let matchingCount = 0;
+
+                dataRows.forEach(row => {
+                    const searchableText = row.textContent.toLowerCase();
+                    if (searchableText.includes(criteria)) {
+                        row.style.display = '';
+                        matchingCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                if (emptyRow) {
+                    // Only show JS empty error state if rows exist but zero match the query
+                    emptyRow.style.display = (matchingCount === 0 && dataRows.length > 0) ? '' : 'none';
+                }
+            });
+        }
     });
 </script>
 
