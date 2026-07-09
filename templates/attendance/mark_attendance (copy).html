@@ -1,12 +1,23 @@
 {% extends 'attendance/base.html' %}
 {% block content %}
 <style>
-    .status-checkbox {
-        width: 1.25rem;
-        height: 1.25rem;
+    .status-selector {
+        padding: 0.3rem 0.8rem;
+        border-radius: 50px;
+        border: 1px solid var(--border);
+        font-weight: 600;
+        background: #f8fafc;
         cursor: pointer;
-        accent-color: var(--success, #2e7d32);
+        width: auto;
+        font-size: 0.9rem;
+        transition: var(--transition);
     }
+    .status-selector:focus {
+        border-color: var(--secondary);
+        box-shadow: 0 0 0 3px rgba(44,110,107,0.2);
+    }
+    .status-selector option[value="PRESENT"] { color: var(--success); }
+    .status-selector option[value="ABSENT"] { color: var(--danger); }
     #geo-status {
         display: flex;
         align-items: center;
@@ -37,33 +48,6 @@
         border-color: var(--secondary);
         box-shadow: 0 0 0 3px rgba(44,110,107,0.15);
         background: #fff;
-    }
-    .table-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    .bulk-btn {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.85rem;
-        border-radius: 4px;
-        border: 1px solid var(--border);
-        background: #fff;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    .bulk-btn:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-    }
-    .legend-indicator {
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: var(--text-muted);
     }
     .btn-loading {
         position: relative;
@@ -99,22 +83,13 @@
         <span class="text-muted" style="font-size:0.85rem;">{{ students|length }} students</span>
     </div>
 
+    <!-- Wrapped everything inside a standard Django HTML post configuration -->
     <form method="POST" action="{% url 'attendance:mark_attendance' entry.id %}" id="attendance-native-form">
         {% csrf_token %}
         
+        <!-- Hidden inputs configured dynamically via our geolocation check -->
         <input type="hidden" name="latitude" id="geo-lat-input">
         <input type="hidden" name="longitude" id="geo-lng-input">
-
-        <div class="table-actions">
-            <div class="legend-indicator">
-                <i class="fas fa-info-circle" style="color: var(--secondary);"></i> 
-                Sign: <span style="color: #16a34a; font-weight: 600;">☑ Ticked = Present</span> | <span style="color: #dc2626; font-weight: 600;">☐ Empty = Absent</span>
-            </div>
-            <div>
-                <button type="button" class="bulk-btn" id="mark-all-btn"><i class="fas fa-check-square"></i> Mark All Present</button>
-                <button type="button" class="bulk-btn" id="unmark-all-btn"><i class="fas fa-square"></i> Unmark All</button>
-            </div>
-        </div>
 
         <div class="table-wrapper">
             <table id="attendance-table">
@@ -131,7 +106,11 @@
                         <td style="font-family: monospace; font-weight: 600;">{{ s.reg_number }}</td>
                         <td>{{ s.name }}</td>
                         <td>
-                            <input type="checkbox" class="status-checkbox" name="student_{{ s.reg_number }}" value="PRESENT">
+                            <!-- Assigned name tag matching registration keys directly for native array extraction inside your views -->
+                            <select class="status-selector" name="student_{{ s.reg_number }}">
+                                <option value="PRESENT">✅ Present</option>
+                                <option value="ABSENT" selected>❌ Absent</option>
+                            </select>
                         </td>
                     </tr>
                     {% endfor %}
@@ -189,17 +168,6 @@ document.getElementById('tableSearch').addEventListener('input', function() {
         const match = reg.includes(filter) || name.includes(filter);
         row.style.display = match ? '' : 'none';
     });
-});
-
-// Bulk Select / Deselect Operations
-document.getElementById('mark-all-btn').addEventListener('click', () => {
-    const checkboxes = document.querySelectorAll('.status-checkbox');
-    checkboxes.forEach(cb => cb.checked = true);
-});
-
-document.getElementById('unmark-all-btn').addEventListener('click', () => {
-    const checkboxes = document.querySelectorAll('.status-checkbox');
-    checkboxes.forEach(cb => cb.checked = false);
 });
 
 // Native submission UI locking loader

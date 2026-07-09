@@ -155,3 +155,16 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+
+# For local development (prints emails to the terminal console)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# For production environment
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'zantamore@gmail.com'
+EMAIL_HOST_PASSWORD = 'bchp kkcz cwqx conp'
+DEFAULT_FROM_EMAIL = 'Attendance Hub <zantamore@gmail.com>'
