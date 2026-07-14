@@ -1,0 +1,557 @@
+{% extends 'attendance/base.html' %}
+{% block content %}
+
+<style>
+    /* ----- Dashboard Header ----- */
+    .payroll-header {
+        background: linear-gradient(135deg, #ffffff, #f8fafc);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: var(--shadow-sm);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .payroll-title h2 {
+        margin-bottom: 0;
+        font-size: 1.5rem;
+        color: var(--primary-dark);
+    }
+    .payroll-title p {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+
+    /* ----- Responsive Grid: table + form (Isolated from base.html sidebars) ----- */
+    .payroll-finance-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        align-items: start;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Side-by-side layout on PC/Desktop (1024px and up) */
+    @media (min-width: 1024px) {
+        .payroll-finance-grid.has-payroll-sidebar {
+            /* minmax(0, 3fr) is the key! It forces the grid to collapse and shrink when space is tight, triggering the table scroll instead of breaking layout */
+            grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr);
+        }
+    }
+
+    /* ----- Table container – HORIZONTAL SCROLLING IS GUARANTEED ----- */
+    .ledger-card {
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+    }
+
+    /* The wrapper that handles horizontal overflow and sliding */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        display: block;
+        -webkit-overflow-scrolling: touch; /* smooth sliding on iOS */
+        /* visual hint that more content exists */
+        background: linear-gradient(to right, transparent 90%, rgba(0,0,0,0.02)) no-repeat;
+        background-attachment: local, scroll;
+    }
+
+    /* Custom Premium Scrollbar for table sliding on PCs and Tablets */
+    .table-responsive::-webkit-scrollbar {
+        height: 6px;
+    }
+    .table-responsive::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    /* Force the table to be wider than the container on smaller viewports – this guarantees sliding */
+    .modern-table {
+        width: 100%;
+        min-width: 850px;   /* Forces horizontal sliding on small and medium screens to keep columns readable */
+        border-collapse: separate;
+        border-spacing: 0;
+        table-layout: auto;  /* columns size naturally */
+    }
+
+    .modern-table th {
+        background: #f8fafc;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 1rem 1.25rem;
+        border-bottom: 2px solid var(--border);
+        white-space: nowrap;
+    }
+    .modern-table td {
+        padding: 1.1rem 1.25rem;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-main);
+        font-size: 0.95rem;
+        white-space: nowrap;   /* keeps cells from wrapping awkwardly */
+    }
+    /* Allow description column to wrap if needed, but we use ellipsis */
+    .modern-table td:last-child {
+        white-space: normal;
+        max-width: 220px;
+    }
+    .modern-table tr:last-child td {
+        border-bottom: none;
+    }
+    .modern-table tr:hover td {
+        background-color: #f8fafc;
+    }
+
+    /* ----- Badges & pills ----- */
+    .reference-badge {
+        font-family: 'Courier New', Courier, monospace;
+        background: #f1f5f9;
+        color: #334155;
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        border: 1px solid #e2e8f0;
+        display: inline-block;
+        white-space: nowrap;
+    }
+    .staff-profile-cell .staff-name {
+        font-weight: 600;
+        color: var(--primary-dark);
+        display: block;
+        white-space: nowrap;
+    }
+    .staff-profile-cell .staff-role {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        background: #f1f5f9;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 0.2rem;
+        white-space: nowrap;
+    }
+    .currency-amount {
+        font-weight: 700;
+        color: var(--primary-dark);
+        font-feature-settings: "tnum";
+        white-space: nowrap;
+    }
+    .method-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.65rem;
+        border-radius: 50px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .method-bank { background-color: #e0f2fe; color: #0369a1; }
+    .method-momo { background-color: #fef3c7; color: #b45309; }
+    .method-cash { background-color: #d1fae5; color: #065f46; }
+
+    .description-text {
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        display: block;
+    }
+    .description-text:hover {
+        white-space: normal;
+        max-width: none;
+        background: #fff;
+        position: relative;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+    }
+
+    /* ----- Empty state ----- */
+    .empty-ledger-state {
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+    .empty-ledger-state i {
+        font-size: 3rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    .empty-ledger-state p {
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+
+    /* ----- Form Sidebar – Isolated Sticky Sidebar Card ----- */
+    .payroll-sidebar {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .form-sidebar-card {
+        background: var(--surface);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        padding: 1.75rem;
+        position: sticky;
+        top: calc(var(--nav-height) + 1.5rem);
+        box-sizing: border-box;
+    }
+    @media (max-width: 1023px) {
+        .form-sidebar-card {
+            position: static; /* Flows in block flow on mobile/tablets */
+        }
+    }
+    .form-sidebar-card .card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--primary-dark);
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.75rem;
+    }
+    .form-block {
+        margin-bottom: 1.25rem;
+    }
+    .form-block label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-main);
+        letter-spacing: 0.04em;
+        margin-bottom: 0.5rem;
+    }
+    .form-field-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    .form-field-wrapper i {
+        position: absolute;
+        left: 1rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        pointer-events: none;
+    }
+    .form-input-element {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: var(--radius-sm);
+        background-color: #ffffff;
+        color: var(--text-main);
+        font-family: var(--font);
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: var(--transition);
+        box-sizing: border-box;
+    }
+    select.form-input-element {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 1.25rem;
+        padding-right: 2.5rem;
+    }
+    textarea.form-input-element {
+        padding-left: 1rem;
+        min-height: 80px;
+        resize: vertical;
+    }
+    .form-input-element:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+        background-color: #ffffff;
+    }
+    .currency-prefix {
+        position: absolute;
+        left: 1rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        user-select: none;
+    }
+    .has-currency input {
+        padding-left: 3.25rem;
+    }
+    .btn-payroll-submit {
+        width: 100%;
+        background: linear-gradient(135deg, var(--secondary), var(--primary));
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 0.85rem 1.5rem;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+        box-sizing: border-box;
+    }
+    .btn-payroll-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow);
+        filter: brightness(1.08);
+    }
+
+    /* ----- Search bar ----- */
+    .search-wrapper {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .search-wrapper i {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+    }
+    .search-wrapper input {
+        flex: 1;
+        min-width: 180px;
+        padding: 0.6rem 1rem;
+        border-radius: 50px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.9rem;
+        background: #ffffff;
+        transition: var(--transition);
+        box-sizing: border-box;
+    }
+    .search-wrapper input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+    #resultCount {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    /* ----- Responsive adjustments ----- */
+    @media (max-width: 576px) {
+        .payroll-header {
+            padding: 1.25rem;
+        }
+        .payroll-title h2 {
+            font-size: 1.2rem;
+        }
+        .payroll-title p {
+            font-size: 0.75rem;
+        }
+        .form-sidebar-card {
+            padding: 1.25rem;
+        }
+        .modern-table th,
+        .modern-table td {
+            padding: 0.75rem 0.75rem;
+            font-size: 0.85rem;
+        }
+        .search-wrapper {
+            padding: 0.75rem;
+        }
+        .search-wrapper input {
+            min-width: 120px;
+            font-size: 0.85rem;
+        }
+        .description-text {
+            max-width: 100px;
+        }
+        .reference-badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+        }
+    }
+</style>
+
+<div class="payroll-header">
+    <div class="payroll-title">
+        <h2>{% if is_management %}<i class="fas fa-wallet"></i> Institutional Payroll Ledger{% else %}<i class="fas fa-history"></i> Your Payment Remittance History{% endif %}</h2>
+        <p>{% if is_management %}Comprehensive audit profile trace containing financial disbursements issued to staff users.{% else %}Personal real-time record ledger of salary releases and mobile remittances.{% endif %}</p>
+    </div>
+</div>
+
+<div class="payroll-finance-grid {% if is_management %}has-payroll-sidebar{% endif %}">
+    
+    <div class="payroll-main-ledger">
+        <div class="ledger-card">
+            <div class="search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="staffSearch" placeholder="Filter by staff name, reference, amount, method..." autocomplete="off">
+                <span id="resultCount"></span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="modern-table" id="payrollTable">
+                    <thead>
+                        <tr>
+                            <th>Reference ID</th>
+                            {% if is_management %}<th>Staff Member</th>{% endif %}
+                            <th>Amount Released</th>
+                            <th>Date Processed</th>
+                            <th>Payment Method</th>
+                            <th>Description Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td><span class="reference-badge">{{ payment.reference_number }}</span></td>
+                            {% if is_management %}
+                            <td>
+                                <div class="staff-profile-cell">
+                                    <span class="staff-name">{{ payment.staff.username }}</span>
+                                    <span class="staff-role">{{ payment.staff.role }}</span>
+                                </div>
+                            </td>
+                            {% endif %}
+                            <td><span class="currency-amount">UGX {{ payment.amount }}</span></td>
+                            <td><span style="font-weight: 500; color: #475569;">{{ payment.payment_date }}</span></td>
+                            <td>
+                                {% if payment.payment_method == 'BANK_TRANSFER' %}
+                                    <span class="method-pill method-bank"><i class="fas fa-university"></i> Bank Transfer</span>
+                                {% elif payment.payment_method == 'MOBILE_MONEY' %}
+                                    <span class="method-pill method-momo"><i class="fas fa-mobile-alt"></i> Mobile Money</span>
+                                {% else %}
+                                    <span class="method-pill method-cash"><i class="fas fa-money-bill-wave"></i> Cash Desk</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="description-text" title="{{ payment.description }}">
+                                    {% if payment.description %}{{ payment.description }}{% else %}<span style="color: #cbd5e1;">—</span>{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if is_management %}6{% else %}5{% endif %}">
+                                <div class="empty-ledger-state">
+                                    <i class="fas fa-folder-open"></i>
+                                    <p>No transactions or corporate payment log records found inside this system trace account query.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if is_management %}
+    <div class="payroll-sidebar">
+        <div class="form-sidebar-card">
+            <h3 class="card-title"><i class="fas fa-paper-plane"></i> Disburse Staff Payment</h3>
+            <form method="POST" action="">
+                {% csrf_token %}
+                
+                <div class="form-block">
+                    <label for="id_staff_id">Recipient Staff Profile</label>
+                    <div class="form-field-wrapper">
+                        <i class="fas fa-user"></i>
+                        <select id="id_staff_id" name="staff_id" class="form-input-element" required>
+                            <option value="" disabled selected>Select staff member...</option>
+                            {% for staff in all_staff %}
+                                <option value="{{ staff.id }}">{{ staff.username }} [{{ staff.role }}]</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-block">
+                    <label for="id_amount">Amount (UGX)</label>
+                    <div class="form-field-wrapper has-currency">
+                        <span class="currency-prefix">UGX</span>
+                        <input id="id_amount" type="number" name="amount" step="0.01" min="0" placeholder="0.00" class="form-input-element" required>
+                    </div>
+                </div>
+
+                <div class="form-block">
+                    <label for="id_reference_number">Reference / Voucher ID</label>
+                    <div class="form-field-wrapper">
+                        <i class="fas fa-receipt"></i>
+                        <input id="id_reference_number" type="text" name="reference_number" placeholder="e.g. TXN-98231B" class="form-input-element" required>
+                    </div>
+                </div>
+
+                <div class="form-block">
+                    <label for="id_description">Description Note</label>
+                    <div class="form-field-wrapper">
+                        <textarea id="id_description" name="description" placeholder="E.g., June Basic Salary, Overtime Allowance" class="form-input-element"></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-payroll-submit">
+                    <i class="fas fa-check-circle"></i> Commit Payroll Disbursal
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('staffSearch');
+        const table = document.getElementById('payrollTable');
+        const rows = table ? table.querySelectorAll('tbody tr') : [];
+        const resultCount = document.getElementById('resultCount');
+
+        function filterTable() {
+            const filter = searchInput.value.toLowerCase().trim();
+            let visible = 0;
+            rows.forEach(row => {
+                // Skip the empty state row (has colspan)
+                if (row.querySelector('td[colspan]')) return;
+                const text = row.textContent.toLowerCase();
+                const match = text.includes(filter);
+                row.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            if (resultCount) {
+                resultCount.textContent = visible > 0 ? `(${visible} visible)` : '';
+            }
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('keyup', filterTable);
+            filterTable(); // initial count
+        }
+    });
+</script>
+
+{% endblock %}

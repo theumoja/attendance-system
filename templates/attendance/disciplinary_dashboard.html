@@ -1,0 +1,167 @@
+{% extends 'attendance/base.html' %}
+{% block content %}
+<style>
+    .disc-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+    @media (min-width: 992px) {
+        .disc-grid.has-sidebar { grid-template-columns: 2fr 1fr; }
+    }
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .card-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .data-table th { background: #f8fafc; color: #475569; font-weight: 600; padding: 1rem; border-bottom: 2px solid var(--border); }
+    .data-table td { padding: 1rem; border-bottom: 1px solid var(--border); color: #334155; vertical-align: top; }
+    .data-table tr:hover { background-color: #f1f5f9; }
+    
+    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 50px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
+    .sev-MILD { background-color: #fef3c7; color: #d97706; }
+    .sev-SEVERE { background-color: #ffedd5; color: #ea580c; }
+    .sev-VERY_SEVERE { background-color: #fee2e2; color: #b91c1c; }
+
+    .form-group { margin-bottom: 1.2rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.4rem; color: #475569; }
+    .form-control { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); box-sizing: border-box; background: var(--surface); font-family: var(--font); }
+    
+    .btn { padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; border: none; }
+    .btn-danger { background: #ef4444; color: white; font-size: 0.8rem; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-primary { background: var(--primary); color: white; width: 100%; padding: 0.75rem; }
+</style>
+
+<div class="container-fluid">
+    <div class="toolbar">
+        <div>
+            <h1 style="margin: 0; color: #1e293b;">Conduct & Disciplinary Logs</h1>
+            <p style="margin: 0.25rem 0 0 0; color: #64748b;">
+                {% if can_report %}Log conduct breaches and manage filed case sheets.{% else %}Review academic conduct records evaluation grid.{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="disc-grid {% if can_report %}has-sidebar{% endif %}">
+        <div class="card">
+            <div class="card-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Incident Timeline Logs
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Student Target</th>
+                            <th>Incident Case / Details</th>
+                            <th>Severity</th>
+                            <th>Logged By</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td style="white-space: nowrap;">
+                                <strong>{{ record.student.name }}</strong><br>
+                                <small style="color: #64748b;">{{ record.student.reg_number }}</small>
+                            </td>
+                            <td>
+                                <span style="font-weight: 700; color: #0f172a; display: block; margin-bottom: 0.25rem;">{{ record.subject }}</span>
+                                <p style="margin: 0; font-size: 0.9rem; color: #475569;">{{ record.details }}</p>
+                                <small style="color: #94a3b8; display: block; margin-top: 0.5rem;">Reported: {{ record.date_logged|date:"d M Y H:i" }}</small>
+                            </td>
+                            <td>
+                                <span class="badge sev-{{ record.severity }}">{{ record.get_severity_display }}</span>
+                            </td>
+                            <td>
+                                <span style="font-size: 0.9rem; font-weight: 500;">{{ record.reported_by.get_role_display }}</span><br>
+                                <small style="color:#64748b;">@{{ record.reported_by.username }}</small>
+                            </td>
+                            <td style="text-align: right; vertical-align: middle;">
+                                {% if is_admin or record.reported_by == request.user %}
+                                    <a href="{% url 'attendance:delete_complaint' record.id %}" 
+                                       class="btn btn-danger" 
+                                       onclick="return confirm('Are you sure you want to permanently delete this file record?');">
+                                        Delete
+                                    </a>
+                                {% else %}
+                                    <span style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">Read-Only</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 3rem; color: #64748b;">The code registry clean sheet is clear. No behavior complaints recorded.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if can_report %}
+        <div class="card">
+            <div class="card-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Log New Incident Case
+            </div>
+            <form method="POST" action="{% url 'attendance:add_complaint' %}">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="student_id">Target Student Profile</label>
+                    <select name="student_id" id="student_id" class="form-control" required>
+                        <option value="" disabled selected>-- Choose Student Profile --</option>
+                        {% for student in students %}
+                            <option value="{{ student.reg_number }}">{{ student.name }} ({{ student.reg_number }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="severity">Classification Scale Level</label>
+                    <select name="severity" id="severity" class="form-control" required>
+                        {% for code, label in severities %}
+                            <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="subject">Case Headline Summary</label>
+                    <input type="text" name="subject" id="subject" class="form-control" placeholder="e.g., Examination malpractice attempt" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="details">Detailed Statement Narrative</label>
+                    <textarea name="details" id="details" rows="5" class="form-control" placeholder="Provide factual context details regarding the infraction..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Commit Complaint Record</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

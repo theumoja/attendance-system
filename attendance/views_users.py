@@ -11,11 +11,10 @@ from django.urls import reverse
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
+# Import all models from models.py
+from attendance.models import *
 
-from attendance.models import (
-    User, TimetableEntry, StudentProfile, AttendanceSession,
-    AttendanceRecord, CourseUnit
-)
+
 
 @login_required
 def home(request):
@@ -26,10 +25,16 @@ def home(request):
         return redirect('attendance:admin_dashboard')
     elif request.user.role == User.IS_TEACHER:
         return redirect('attendance:teacher_dashboard')
+    elif request.user.role == User.IS_WARDEN:
+        return redirect('attendance:warden_dashboard')
+    
+    elif request.user.role == User.IS_ACCOUNTANT:
+        return redirect('attendance:accountant_dashboard')
+        
     else:
         return redirect('attendance:student_dashboard')
 
-
+from django.db import transaction  # <-- Add this missing import
 import csv
 import json
 from datetime import datetime
@@ -39,20 +44,239 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Q
 
-# Import all models from models.py
-from attendance.models import (
-    User, 
-    Department, 
-    Course, 
-    Stream, 
-    CourseUnit, 
-    TeacherProfile, 
-    StudentProfile, 
-    TimetableBatch, 
-    TimetableEntry, 
-    AttendanceSession, 
-    AttendanceRecord
-)
+
+import json
+import csv
+from datetime import datetime
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.utils import timezone
+
+
+from django.db.models import Sum
+from django.core.exceptions import PermissionDenied
+
+
+from django.db.models import Sum, F
+
+@login_required
+def accountant_dashboard(request):
+    """
+    Accountant's central overview dashboard:
+    - Student financial summary (fees billed, collected, pending)
+    - Staff payroll summary (total disbursed, paid/unpaid staff)
+    - Disciplinary case distribution
+    - Lodging occupancy snapshot
+    - Recent transaction feed
+    """
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Access Denied: Only Accountants can view this dashboard.")
+
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+
+    # ---------- Student Fees ----------
+    total_students = StudentProfile.objects.count()
+    fee_accounts = StudentTermFee.objects.filter(term=current_term) if current_term else StudentTermFee.objects.none()
+    total_billed = fee_accounts.aggregate(Sum('total_fees_due'))['total_fees_due__sum'] or 0
+    total_collected = fee_accounts.aggregate(Sum('total_amount_paid'))['total_amount_paid__sum'] or 0
+    total_pending = total_billed - total_collected
+    cleared_count = fee_accounts.filter(total_fees_due__lte=F('total_amount_paid'), total_fees_due__gt=0).count()
+    partial_count = fee_accounts.filter(total_amount_paid__gt=0, total_fees_due__gt=F('total_amount_paid')).count()
+    unpaid_count = fee_accounts.filter(total_amount_paid=0, total_fees_due__gt=0).count()
+
+    # ---------- Staff Payroll ----------
+    total_staff = User.objects.exclude(role=User.IS_STUDENT).count()
+    paid_staff = StaffPaymentRecord.objects.filter(term=current_term).values('staff').distinct().count() if current_term else 0
+    unpaid_staff = total_staff - paid_staff
+    total_payroll = StaffPaymentRecord.objects.filter(term=current_term).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    # ---------- Disciplinary ----------
+    total_disciplinary = DisciplinaryRecord.objects.count()
+    mild = DisciplinaryRecord.objects.filter(severity='MILD').count()
+    severe = DisciplinaryRecord.objects.filter(severity='SEVERE').count()
+    very_severe = DisciplinaryRecord.objects.filter(severity='VERY_SEVERE').count()
+
+    # ---------- Lodging (current term) ----------
+    if current_term:
+        allocations = RoomAllocation.objects.filter(term=current_term)
+        total_allocated = allocations.values('student').distinct().count()
+        total_rooms = Room.objects.count()
+        total_capacity = Room.objects.aggregate(Sum('capacity'))['capacity__sum'] or 0
+        occupancy_rate = (total_allocated / total_capacity * 100) if total_capacity > 0 else 0
+        # FIX: Use reg_number__in instead of id__in
+        allocated_regs = allocations.values_list('student_id', flat=True)
+        unallocated_students = StudentProfile.objects.exclude(reg_number__in=allocated_regs).count()
+    else:
+        total_allocated = 0
+        total_rooms = 0
+        total_capacity = 0
+        occupancy_rate = 0
+        unallocated_students = 0
+
+    # ---------- Recent Transactions ----------
+    recent_transactions = FeePaymentTransaction.objects.all().order_by('-date_recorded')[:5]
+
+    context = {
+        'total_students': total_students,
+        'total_billed': total_billed,
+        'total_collected': total_collected,
+        'total_pending': total_pending,
+        'cleared_count': cleared_count,
+        'partial_count': partial_count,
+        'unpaid_count': unpaid_count,
+        'total_staff': total_staff,
+        'paid_staff': paid_staff,
+        'unpaid_staff': unpaid_staff,
+        'total_payroll': total_payroll,
+        'total_disciplinary': total_disciplinary,
+        'mild': mild,
+        'severe': severe,
+        'very_severe': very_severe,
+        'total_allocated': total_allocated,
+        'total_rooms': total_rooms,
+        'total_capacity': total_capacity,
+        'occupancy_rate': round(occupancy_rate, 1),
+        'unallocated_students': unallocated_students,
+        'recent_transactions': recent_transactions,
+        'current_term': current_term,
+    }
+    return render(request, 'attendance/accountant_dashboard.html', context)
+
+@login_required
+def warden_dashboard(request):
+    """
+    Warden’s central command centre:
+    - Lodging statistics (hostels, rooms, occupancy)
+    - Disciplinary overview
+    - Personal staff payment history
+    """
+    if request.user.role != User.IS_WARDEN:
+        raise PermissionDenied("Access Denied: Only Wardens can view this dashboard.")
+
+    user = request.user
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+
+    # ---------- LODGING STATISTICS ----------
+    hostels = Hostel.objects.all()
+    total_hostels = hostels.count()
+    rooms = Room.objects.all()
+    total_rooms = rooms.count()
+    total_capacity = rooms.aggregate(total=Sum('capacity'))['total'] or 0
+
+    # Allocations for the current term (or all if none active)
+    allocations_qs = RoomAllocation.objects.filter(term=current_term) if current_term else RoomAllocation.objects.all()
+    allocated_students_count = allocations_qs.values('student').distinct().count()
+
+    total_students = StudentProfile.objects.count()
+    unallocated_students_count = total_students - allocated_students_count
+
+    occupancy_rate = (allocated_students_count / total_capacity * 100) if total_capacity > 0 else 0
+
+    # Per‑hostel occupancy breakdown
+    hostel_occupancy = []
+    for hostel in hostels:
+        rooms_in_hostel = Room.objects.filter(hostel=hostel)
+        capacity_sum = rooms_in_hostel.aggregate(total=Sum('capacity'))['total'] or 0
+        occupied = RoomAllocation.objects.filter(
+            room__hostel=hostel,
+            term=current_term if current_term else None
+        ).values('student').distinct().count()
+        hostel_occupancy.append({
+            'name': hostel.name,
+            'capacity': capacity_sum,
+            'occupied': occupied,
+            'percentage': (occupied / capacity_sum * 100) if capacity_sum > 0 else 0
+        })
+
+    # ---------- DISCIPLINARY STATISTICS ----------
+    total_records = DisciplinaryRecord.objects.count()
+    mild = DisciplinaryRecord.objects.filter(severity='MILD').count()
+    severe = DisciplinaryRecord.objects.filter(severity='SEVERE').count()
+    very_severe = DisciplinaryRecord.objects.filter(severity='VERY_SEVERE').count()
+
+    recent_disciplinary = DisciplinaryRecord.objects.all().order_by('-date_logged')[:5]
+
+    # ---------- STAFF PAYMENT HISTORY ----------
+    staff_payments = StaffPaymentRecord.objects.filter(staff=user).order_by('-payment_date')
+
+    # ---------- CONTEXT ----------
+    context = {
+        'total_hostels': total_hostels,
+        'total_rooms': total_rooms,
+        'total_capacity': total_capacity,
+        'total_allocated': allocated_students_count,
+        'unallocated_students': unallocated_students_count,
+        'occupancy_rate': round(occupancy_rate, 1),
+        'hostel_occupancy': hostel_occupancy,
+        'total_records': total_records,
+        'mild': mild,
+        'severe': severe,
+        'very_severe': very_severe,
+        'recent_disciplinary': recent_disciplinary,
+        'staff_payments': staff_payments,
+        'current_term': current_term,
+    }
+    return render(request, 'attendance/warden_dashboard.html', context)
+
+@login_required
+def library_dashboard(request):
+    # Fetch all records, putting active logs on top
+    records = LibraryRecord.objects.select_related('student').all().order_by('is_returned', '-date_issued')
+    
+    context = {
+        'records': records,
+        'is_librarian': request.user.role == User.IS_LIBRARIAN
+    }
+    
+    # If Librarian, pull contextual information needed for processing forms
+    if request.user.role == User.IS_LIBRARIAN:
+        context['students'] = StudentProfile.objects.all().order_by('name')
+        
+    return render(request, 'attendance/library_dashboard.html', context)
+
+
+@login_required
+@transaction.atomic
+def process_book_issue(request):
+    if request.user.role != User.IS_LIBRARIAN:
+        return HttpResponse("Unauthorized", status=403)
+        
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        book_title = request.POST.get('book_title', '').strip()
+        
+        if student_id and book_title:
+            student = get_object_or_404(StudentProfile, reg_number=student_id)
+            LibraryRecord.objects.create(
+                student=student,
+                book_title=book_title,
+                issued_by=request.user
+            )
+            messages.success(request, f"Successfully logged issuance of '{book_title}' to {student.name}.")
+        else:
+            messages.error(request, "All required collection fields must be provided.")
+            
+    return redirect('attendance:library_dashboard')
+
+
+@login_required
+@transaction.atomic
+def process_book_return(request, record_id):
+    if request.user.role != User.IS_LIBRARIAN:
+        return HttpResponse("Unauthorized", status=403)
+        
+    record = get_object_or_404(LibraryRecord, id=record_id)
+    if not record.is_returned:
+        record.is_returned = True
+        record.date_returned = timezone.now().date()
+        record.save()
+        messages.success(request, f"Book '{record.book_title}' marked returned successfully.")
+    else:
+        messages.warning(request, "This library record is already checked in.")
+        
+    return redirect('attendance:library_dashboard')
 
 @login_required
 def teacher_dashboard(request):
@@ -69,7 +293,7 @@ def teacher_dashboard(request):
         
     teacher = request.user.teacher_profile
     
-    # 2. Base Domain Querysets
+    # 2. Base Domain Querysets (Scoped to Active Batch)
     timetable = TimetableEntry.objects.filter(
         batch__is_active=True, teacher=teacher
     ).select_related('course_unit__course__department', 'batch', 'stream')
@@ -80,11 +304,10 @@ def teacher_dashboard(request):
     has_multiple_units = course_units.count() > 1
     selected_course_unit_id = request.GET.get('selected_course_unit', '')
     
-    # If the user has multiple units, narrow down the unlocked entries if a selection is made
     if has_multiple_units and selected_course_unit_id:
-        timetable = timetable.filter(course_unit_id=selected_course_unit_id)
+        timetable = timetable.filter(course_unit__code=selected_course_unit_id)
         
-    # 3. Extract Filter Parameters from GET for Student Roster
+    # 3. Extract Filter Parameters from GET for Student Roster & Analytics
     filter_dept = request.GET.get('filter_dept', '')
     filter_course = request.GET.get('filter_course', '')
     filter_stream = request.GET.get('filter_stream', '')
@@ -92,7 +315,7 @@ def teacher_dashboard(request):
     start_date = request.GET.get('start_date', '')
     end_date = request.GET.get('end_date', '')
     
-    # Using 'entries' backward relation lookup because of related_name='entries' in models.py
+    # Select streams assigned directly to this teacher's timetable ruleset
     selectable_streams = Stream.objects.filter(entries__teacher=teacher).distinct()
     
     distinct_courses = set()
@@ -134,27 +357,56 @@ def teacher_dashboard(request):
     total_students_count = students.count()
     active_classes_count = TimetableEntry.objects.filter(batch__is_active=True, teacher=teacher).values('stream').distinct().count()
     
-    # Resolve weekday value to look up systemic locks
+    # Resolve weekday value to match timetable entry day flags
     weekday_map = {0: 'MON', 1: 'TUE', 2: 'WED', 3: 'THU', 4: 'FRI', 5: 'SAT', 6: 'SUN'}
     current_weekday_str = weekday_map[datetime.now().weekday()]
     
     todays_sessions = TimetableEntry.objects.filter(batch__is_active=True, teacher=teacher, day=current_weekday_str)
     todays_sessions_count = todays_sessions.count()
     
-    # 5. Compute Aggregate Global Attendance Rates
-    total_records = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher)
-    total_records_count = total_records.count()
-    present_records_count = total_records.filter(status='PRESENT').count()
-    absent_records_count = total_records.filter(status='ABSENT').count()
+    # 5. DYNAMIC METRICS: Filter base records according to UI interactions
+    base_records = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher)
+    
+    if has_multiple_units and selected_course_unit_id:
+        base_records = base_records.filter(session__timetable_entry__course_unit__code=selected_course_unit_id)
+    if filter_dept:
+        base_records = base_records.filter(session__timetable_entry__course_unit__course__department_id=filter_dept)
+    if filter_course:
+        base_records = base_records.filter(session__timetable_entry__course_unit__course__code=filter_course)
+    if filter_stream:
+        base_records = base_records.filter(session__timetable_entry__stream_id=filter_stream)
+
+    # Process timeframe query parameters matrix
+    today = datetime.now().date()
+    if quick_range == 'today':
+        base_records = base_records.filter(session__date_marked=today)
+    elif quick_range == 'week':
+        from datetime import timedelta
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        base_records = base_records.filter(session__date_marked__range=[start_of_week, end_of_week])
+    elif quick_range == 'month':
+        base_records = base_records.filter(session__date_marked__year=today.year, session__date_marked__month=today.month)
+    elif start_date and end_date:
+        try:
+            base_records = base_records.filter(session__date_marked__range=[start_date, end_date])
+        except (ValueError, TypeError):
+            pass
+
+    # Compute Aggregate Global Attendance Rates on the filtered dataset
+    total_records_count = base_records.count()
+    present_records_count = base_records.filter(status='PRESENT').count()
+    absent_records_count = base_records.filter(status='ABSENT').count()
     
     global_attendance_rate = round((present_records_count / total_records_count) * 100, 1) if total_records_count > 0 else 0
     
-    # 6. Generate Weekly Attendance Trend Matrix
+    # 6. Generate Dynamic Weekly Attendance Trend Matrix (Respects filters per day)
     weekly_trend_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
     weekly_trend_rates = []
     for day_code in ['MON', 'TUE', 'WED', 'THU', 'FRI']:
-        day_total = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher, session__timetable_entry__day=day_code).count()
-        day_present = AttendanceRecord.objects.filter(session__timetable_entry__teacher=teacher, session__timetable_entry__day=day_code, status='PRESENT').count()
+        day_records = base_records.filter(session__timetable_entry__day=day_code)
+        day_total = day_records.count()
+        day_present = day_records.filter(status='PRESENT').count()
         day_rate = round((day_present / day_total) * 100, 1) if day_total > 0 else 0
         weekly_trend_rates.append(day_rate)
 
@@ -172,12 +424,12 @@ def teacher_dashboard(request):
     for session in recent_sessions:
         p_count = session.records.filter(status='PRESENT').count()
         a_count = session.records.filter(status='ABSENT').count()
-        time_str = datetime.now().strftime("%H:%M")
         recent_activity_feed.append({
             'stream_name': session.timetable_entry.stream.name if session.timetable_entry.stream else "Unknown Session",
+            'course_code': session.timetable_entry.course_unit.code,
             'present': p_count,
             'absent': a_count,
-            'time': time_str
+            'time': session.date_marked.strftime("%b %d, %Y")
         })
 
     unit_stats = []
@@ -197,11 +449,10 @@ def teacher_dashboard(request):
         week_start = active_batch.week_start_date
 
     # 9. Identify Timetable Entries Already Marked Today to Prevent Duplicates
-    today_date = datetime.now().date()
     marked_today_ids = list(
         AttendanceSession.objects.filter(
             timetable_entry__teacher=teacher,
-            date_marked=today_date
+            date_marked=today
         ).values_list('timetable_entry_id', flat=True)
     )
 
@@ -218,6 +469,7 @@ def teacher_dashboard(request):
         
         # Duplicate Prevention State Tracker
         'marked_today_ids': marked_today_ids,
+        'today_date': today,
         
         # Filtering State Retainers
         'filter_dept': filter_dept,
@@ -243,15 +495,6 @@ def teacher_dashboard(request):
         'recent_activity_feed': recent_activity_feed
     }
     return render(request, 'attendance/teacher_dashboard.html', context)
-
-
-from datetime import datetime
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse
-from .models import User, TimetableEntry, AttendanceSession, StudentProfile, AttendanceRecord
-
 @login_required
 def mark_attendance(request, entry_id):
     """
@@ -290,18 +533,15 @@ def mark_attendance(request, entry_id):
     # Fetch all students registered under this stream class layout
     students = StudentProfile.objects.filter(stream=entry.stream).order_by('name')
 
-    # 2. Processing POST Submissions (Now capturing native form payloads perfectly)
+    # 2. Processing POST Submissions
     if request.method == 'POST':
-        # Double-check right before database writes to prevent race conditions or form resubmissions
         if AttendanceSession.objects.filter(timetable_entry=entry, date_marked=today_date).exists():
             messages.error(request, "Submission Rejected: This attendance register was already saved by another request.")
             return redirect('attendance:teacher_dashboard')
 
-        # Read and sanitize coordinates safely from the native form submission [source: 2]
         lat_raw = request.POST.get('latitude')
         lng_raw = request.POST.get('longitude')
         
-        # Ensure empty form strings switch cleanly to None to avoid DB validation type crashes
         lat = lat_raw.strip() if lat_raw and lat_raw.strip() else None
         lng = lng_raw.strip() if lng_raw and lng_raw.strip() else None
         
@@ -314,8 +554,7 @@ def mark_attendance(request, entry_id):
         
         # Write individual student rows
         for student in students:
-            # Captures standard field parameters format: name="student_{{ s.reg_number }}" [source: 2]
-            # Default fallback state is set to 'ABSENT' if unselected or missing
+            # Captures checkbox value. Checked input outputs 'PRESENT', unselected inputs fallback to 'ABSENT'
             status = request.POST.get(f'student_{student.reg_number}', 'ABSENT')
             
             AttendanceRecord.objects.create(
@@ -327,7 +566,7 @@ def mark_attendance(request, entry_id):
         messages.success(request, f"Attendance successfully saved and locked for {entry.course_unit.name} ({entry.stream.name}).")
         return redirect('attendance:teacher_dashboard')
 
-    # 3. Processing GET Requests (Render standard list layout)
+    # 3. Processing GET Requests (Render roster sheet)
     context = {
         'entry': entry,
         'students': students,
@@ -335,6 +574,7 @@ def mark_attendance(request, entry_id):
     }
     return render(request, 'attendance/mark_attendance.html', context)
 
+    
 @login_required
 def student_dashboard(request):
     """
@@ -385,7 +625,7 @@ def student_dashboard(request):
     }
     return render(request, 'attendance/student_dashboard.html', context)
 
-
+'''
 import io
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
@@ -555,8 +795,150 @@ def download_attendance_card(request):
     response['Content-Disposition'] = f'attachment; filename="Exam_Clearance_{student.reg_number}.pdf"'
     response.write(pdf_output)
     return response
+'''
+import io
+import os                                 # <-- added for file existence check
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
 
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    Image                                # <-- added for logo
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
+@login_required
+def download_attendance_card(request):
+    """
+    Generates and downloads a beautiful PDF Exam Clearance Certificate
+    ONLY if the student's attendance matches or exceeds 75%.
+    """
+    if request.user.role != User.IS_STUDENT:
+        return HttpResponse("Unauthorized", status=403)
+
+    student = request.user.student_profile
+    records = AttendanceRecord.objects.filter(student=student)
+    
+    total_present = records.filter(status='PRESENT').count()
+    total_sessions = records.count()
+    
+    attendance_percentage = (total_present / total_sessions * 100) if total_sessions > 0 else 0
+    
+    if attendance_percentage < 75.0:
+        return HttpResponse("Forbidden: Ineligible for clearance certificate.", status=403)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        leftMargin=40,
+        rightMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+
+    def draw_certificate_frame(canvas, document):
+        canvas.saveState()
+        canvas.setStrokeColor(colors.HexColor("#1e3a8a"))
+        canvas.setLineWidth(5)
+        canvas.rect(25, 25, document.pagesize[0] - 50, document.pagesize[1] - 50)
+        canvas.setStrokeColor(colors.HexColor("#d97706"))
+        canvas.setLineWidth(1.5)
+        canvas.rect(32, 32, document.pagesize[0] - 64, document.pagesize[1] - 64)
+        canvas.setFillColor(colors.HexColor("#f8fafc"))
+        canvas.restoreState()
+
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('CertTitle', parent=styles['Normal'],
+                                fontName='Helvetica-Bold', fontSize=26, leading=32,
+                                textColor=colors.HexColor("#1e3a8a"), alignment=1)
+    subtitle_style = ParagraphStyle('CertSubtitle', parent=styles['Normal'],
+                                    fontName='Helvetica', fontSize=13, leading=16,
+                                    textColor=colors.HexColor("#b45309"), alignment=1, spaceAfter=25)
+    body_text_style = ParagraphStyle('CertBody', parent=styles['Normal'],
+                                     fontName='Helvetica', fontSize=15, leading=24,
+                                     textColor=colors.HexColor("#334155"), alignment=1)
+
+    story = []
+    
+    # ========== NEW: Top-center logo ==========
+    logo_path = 'static/B_logo.png'                   # <-- adjust path if the file is elsewhere
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=140, height=100)   # resize as needed
+        logo.hAlign = 'CENTER'
+        story.append(logo)
+        story.append(Spacer(1, 15))
+    # =========================================
+
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("UTC BUSHENYI ATTENDANCE HUB", subtitle_style))
+    story.append(Paragraph("CERTIFICATE OF EXAMINATION ELIGIBILITY", title_style))
+    story.append(Spacer(1, 20))
+    
+    # (rest of the code remains exactly the same)
+    dept_name = student.course.department.name if student.course.department else "General Academics"
+    statement = (
+        f"This is to officially verify and certify that the student listed below has fulfilled "
+        f"the mandatory institutional structural attendance requirements framework for the academic session."
+    )
+    story.append(Paragraph(statement, body_text_style))
+    story.append(Spacer(1, 25))
+    
+    data_label_style = ParagraphStyle('DataLabel', fontName='Helvetica-Bold', fontSize=12, textColor=colors.HexColor("#1e3a8a"))
+    data_val_style = ParagraphStyle('DataVal', fontName='Helvetica', fontSize=12, textColor=colors.HexColor("#1e293b"))
+    rate_val_style = ParagraphStyle('RateVal', fontName='Helvetica-Bold', fontSize=13, textColor=colors.HexColor("#15803d"))
+
+    student_metadata_table_data = [
+        [Paragraph("STUDENT NAME:", data_label_style), Paragraph(student.name.upper(), data_val_style),
+         Paragraph("REGISTRATION NO:", data_label_style), Paragraph(student.reg_number, data_val_style)],
+        [Paragraph("DEPARTMENT:", data_label_style), Paragraph(dept_name, data_val_style),
+         Paragraph("PROGRAM TRACK:", data_label_style), Paragraph(f"{student.course.code} - {student.course.name}", data_val_style)],
+        [Paragraph("ALLOCATED STREAM:", data_label_style), Paragraph(student.stream.name if student.stream else "Unassigned", data_val_style),
+         Paragraph("AGGREGATE ATTENDANCE:", data_label_style), Paragraph(f"{round(attendance_percentage, 1)}% (ELIGIBLE)", rate_val_style)]
+    ]
+    
+    meta_table = Table(student_metadata_table_data, colWidths=[140, 210, 140, 210])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+        ('TOPPADDING', (0,0), (-1,-1), 12),
+        ('LINEBELOW', (0,0), (-1,-2), 0.5, colors.HexColor("#e2e8f0")),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 45))
+    
+    sig_line_style = ParagraphStyle('SigLine', fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#64748b"), alignment=1)
+    sig_title_style = ParagraphStyle('SigTitle', fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#1e3a8a"), alignment=1)
+
+    signatures_layout_matrix = [
+        [Paragraph("", sig_line_style), Paragraph("", sig_line_style), Paragraph("", sig_line_style)],
+        [Paragraph("<b>___________________________</b>", sig_line_style), 
+         Paragraph("<b>[ SYSTEM SEAL ]</b>", sig_title_style), 
+         Paragraph("<b>___________________________</b>", sig_line_style)],
+        [Paragraph("Academic Registrar Office", sig_title_style), 
+         Paragraph("Verified Digitally", sig_line_style), 
+         Paragraph("Date of Issuance", sig_title_style)]
+    ]
+    
+    sig_table = Table(signatures_layout_matrix, colWidths=[250, 200, 250])
+    sig_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ]))
+    story.append(sig_table)
+
+    doc.build(story, onFirstPage=draw_certificate_frame)
+    
+    pdf_output = buffer.getvalue()
+    buffer.close()
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Exam_Clearance_{student.reg_number}.pdf"'
+    response.write(pdf_output)
+    return response
 
 
 @login_required
@@ -620,6 +1002,649 @@ def download_student_report(request):
     wb.save(response)
     return response
 
+
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.db.models import Count, F
+from attendance.models import User, RoomAllocation, Hostel, Room, StudentProfile, TimetableEntry
+
+
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.db.models import Count, F
+from attendance.models import User, RoomAllocation, Hostel, Room, StudentProfile, TimetableEntry
+
+
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Count, Q, Prefetch
+from attendance.models import (
+    User, RoomAllocation, Hostel, Room, StudentProfile, 
+    TimetableEntry, AcademicTerm, Department, Course, Stream
+)
+
+@login_required
+def view_lodgings(request):
+    user = request.user
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+    is_management = user.role in [User.IS_ADMIN, User.IS_WARDEN]
+    
+    # -------------------------------------------------------------------------
+    # HANDLE BULK POST ALLOCATION
+    # -------------------------------------------------------------------------
+    if request.method == 'POST':
+        # SAFE DEFAULTS: Prevents UnboundLocalError under any conditional routing path
+        room_id = None
+        student_ids = []
+
+        # Strict security guard check
+        if not is_management:
+            messages.error(request, "Permission Denied: You do not have authority to alter room allocations.")
+            return redirect('attendance:view_lodgings')
+
+        # Now safely extract parameters within the validated management block
+        room_id = request.POST.get('room_id')
+        student_ids = request.POST.getlist('student_ids') 
+        
+        if not room_id or not student_ids:
+            messages.error(request, "Invalid submission. Please select a room and at least one student.")
+            return redirect('attendance:view_lodgings')
+            
+        if not current_term:
+            messages.error(request, "Operational Block: No active current academic term set in system settings.")
+            return redirect('attendance:view_lodgings')
+
+        try:
+            with transaction.atomic():
+                # Lock the room row to ensure capacity integrity during bulk assignment
+                room = Room.objects.select_for_update().get(id=room_id)
+                current_occupancy = RoomAllocation.objects.filter(room=room, term=current_term).count()
+                available_slots = room.capacity - current_occupancy
+                
+                # LINE 881: Now completely safe from UnboundLocalErrors
+                if len(student_ids) > available_slots:
+                    messages.error(request, f"Allocation Failed: Room has only {available_slots} slots open, but you chose {len(student_ids)} students.")
+                    return redirect('attendance:view_lodgings')
+                
+                allocations_to_create = []
+                for s_id in student_ids:
+                    student = StudentProfile.objects.get(pk=s_id)
+                    
+                    # Safe check against the unique_together ('student', 'term') rule
+                    if RoomAllocation.objects.filter(student=student, term=current_term).exists():
+                        continue
+                        
+                    allocations_to_create.append(
+                        RoomAllocation(
+                            student=student,
+                            room=room,
+                            term=current_term,
+                            allocated_by=user
+                        )
+                    )
+                
+                if allocations_to_create:
+                    RoomAllocation.objects.bulk_create(allocations_to_create)
+                    messages.success(request, f"Successfully allocated {len(allocations_to_create)} students.")
+                else:
+                    messages.warning(request, "No allocations were processed. Selected students may already have rooms this term.")
+                    
+        except Exception as e:
+            messages.error(request, f"Transaction error encountered: {str(e)}")
+            
+        return redirect('attendance:view_lodgings')
+    # -------------------------------------------------------------------------
+    # READ DATA QUERIES & PREFETCH SETUP (Remains same for viewing)
+    # -------------------------------------------------------------------------
+    hostels = Hostel.objects.all()
+    
+    if current_term:
+        allocations_qs = RoomAllocation.objects.filter(term=current_term).select_related('student__stream', 'allocated_by')
+        term_filter = Q(allocations__term=current_term)
+    else:
+        allocations_qs = RoomAllocation.objects.all().select_related('student__stream', 'allocated_by')
+        term_filter = Q()
+        messages.warning(request, "System Notice: No active academic term is flagged as current. Displaying all historical records.")
+    
+    if user.role == User.IS_STUDENT:
+        allocations_qs = allocations_qs.filter(student__user=user)
+    elif user.role == User.IS_TEACHER:
+        teacher_streams = TimetableEntry.objects.filter(
+            batch__is_active=True, teacher__user=user
+        ).values_list('stream_id', flat=True)
+        allocations_qs = allocations_qs.filter(student__stream_id__in=teacher_streams)
+    elif is_management:
+        pass
+    else:
+        raise PermissionDenied("You do not have access to view student lodgings.")
+
+    departments = Department.objects.all()
+    courses = Course.objects.all()
+    streams = Stream.objects.all()
+    
+    rooms_with_occupancy = Room.objects.annotate(
+        current_occupancy=Count('allocations', filter=term_filter)
+    ).prefetch_related(
+        Prefetch('allocations', queryset=allocations_qs, to_attr='term_allocations')
+    ).select_related('hostel').order_by('hostel__name', 'name_or_number')
+
+    if is_management:
+        allocated_student_ids = RoomAllocation.objects.filter(term=current_term).values_list('student_id', flat=True) if current_term else []
+        unallocated_students = StudentProfile.objects.exclude(pk__in=allocated_student_ids).select_related(
+            'course__department', 'stream'
+        ).order_by('name')
+    else:
+        unallocated_students = StudentProfile.objects.none()
+
+    context = {
+        'hostels': hostels,
+        'rooms': rooms_with_occupancy,
+        'is_management': is_management,
+        'departments': departments,
+        'courses': courses,
+        'streams': streams,
+        'unallocated_students': unallocated_students,
+        'current_term': current_term,
+    }
+    return render(request, 'attendance/view_lodgings.html', context)
+
+
+
+
+
+
+
+
+
+
+@login_required
+@transaction.atomic
+def allocate_or_reallocate(request):
+    # Strict Authorization Guard for Wardens only
+    if request.user.role != User.IS_WARDEN:
+        return HttpResponse("Unauthorized: Only Wardens can manage room allocations.", status=403)
+        
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        room_id = request.POST.get('room_id')
+        
+        student_profile = get_object_or_404(StudentProfile, reg_number=student_id)
+        target_room = get_object_or_404(Room, id=room_id)
+        
+        # update_or_create handles both fresh assignments and reallocations safely
+        RoomAllocation.objects.update_or_create(
+            student=student_profile,
+            defaults={'room': target_room, 'allocated_by': request.user}
+        )
+        messages.success(request, f"Successfully allocated room for student {student_profile.name}.")
+        return redirect('attendance:view_lodgings')
+
+from django.utils import timezone
+from decimal import Decimal
+
+from django.db import models
+from django.db.models import Sum, F
+from django.utils import timezone
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.contrib import messages
+import calendar
+
+import calendar
+from decimal import Decimal
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.contrib import messages
+from django.db import models, transaction
+from django.db.models import Sum
+from django.utils import timezone
+from django.db.models.functions import ExtractMonth, ExtractYear
+from attendance.models import (
+    User, StudentProfile, AcademicTerm, StudentTermFee, 
+    FeePaymentTransaction, StaffPaymentRecord
+)
+
+@login_required
+def fees_dashboard(request):
+    """
+    Student fee management page:
+    - Management (Admin/Accountant): view all student fee accounts for the current term,
+      see transaction history, and record new payments.
+    - Student: view only their own fee account and transaction history.
+    """
+    user = request.user
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+    is_management = user.role in [User.IS_ACCOUNTANT, User.IS_ADMIN]
+
+    # ----------------------------------------------------------------------
+    # 1. Determine which fee accounts and transactions to display
+    # ----------------------------------------------------------------------
+    if is_management:
+        if current_term:
+            fee_accounts = StudentTermFee.objects.filter(term=current_term).select_related('student')
+            transactions = FeePaymentTransaction.objects.filter(
+                term_fee_account__term=current_term
+            ).select_related('term_fee_account__student', 'processed_by')
+            all_accounts = StudentTermFee.objects.filter(term=current_term).select_related('student')
+        else:
+            fee_accounts = StudentTermFee.objects.none()
+            transactions = FeePaymentTransaction.objects.none()
+            all_accounts = None
+            messages.warning(request, "No active academic term is set. Please configure a current term.")
+    elif user.role == User.IS_STUDENT:
+        # Students see only their own data
+        fee_accounts = StudentTermFee.objects.filter(student__user=user).select_related('student', 'term')
+        transactions = FeePaymentTransaction.objects.filter(
+            term_fee_account__student__user=user
+        ).select_related('term_fee_account__student', 'processed_by')
+        all_accounts = None
+    else:
+        raise PermissionDenied("You do not have permission to view student financial records.")
+
+    # ----------------------------------------------------------------------
+    # 2. Handle POST – record a new payment (management only)
+    # ----------------------------------------------------------------------
+    if request.method == 'POST':
+        if not is_management:
+            raise PermissionDenied("Unauthorized transaction entry blocked.")
+
+        account_id = request.POST.get('account_id')
+        amount = request.POST.get('amount')
+        ref = request.POST.get('reference_number')
+        desc = request.POST.get('description', '')
+
+        try:
+            target_account = StudentTermFee.objects.get(id=account_id)
+            FeePaymentTransaction.objects.create(
+                term_fee_account=target_account,
+                amount=amount,
+                reference_number=ref,
+                description=desc,
+                processed_by=user if user.role == User.IS_ACCOUNTANT else None
+            )
+            messages.success(request, f"Payment successfully recorded for {target_account.student.name}.")
+        except Exception as e:
+            messages.error(request, f"Failed to log transaction: {str(e)}")
+
+        return redirect('attendance:fees_dashboard')
+
+    # ----------------------------------------------------------------------
+    # 3. Context for the template
+    # ----------------------------------------------------------------------
+    context = {
+        'fee_accounts': fee_accounts,
+        'transactions': transactions,
+        'is_management': is_management,
+        'all_accounts': all_accounts,
+        'current_term': current_term,
+    }
+    return render(request, 'attendance/fees_dashboard.html', context)
+
+@login_required
+@transaction.atomic
+def edit_fee_transaction(request, transaction_id):
+    """
+    Allows Accountant/Admin to rewrite a fee transaction.
+    Commits full current state parameters of the form and modifies corresponding term balances.
+    """
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Unauthorized financial operation.")
+
+    transaction_record = get_object_or_404(FeePaymentTransaction, id=transaction_id)
+    account = transaction_record.term_fee_account
+
+    if request.method == 'POST':
+        try:
+            new_amount = Decimal(request.POST.get('amount', '0.00'))
+            new_ref = request.POST.get('reference_number', '').strip()
+            new_desc = request.POST.get('description', '')
+
+            # Revert old balance impact if the transaction line was previously confirmed
+            if transaction_record.is_confirmed:
+                account.total_amount_paid -= transaction_record.amount
+                account.total_amount_paid += new_amount
+                account.save()
+
+            # Fully overwrite parameters to commit all form fields
+            transaction_record.amount = new_amount
+            transaction_record.reference_number = new_ref
+            transaction_record.description = new_desc
+            transaction_record.processed_by = request.user
+            transaction_record.save()
+
+            messages.success(request, f"Transaction {new_ref} updated and balances adjusted successfully.")
+        except Exception as e:
+            messages.error(request, f"Failed to modify ledger row: {str(e)}")
+            
+    return redirect('attendance:fees_dashboard')
+
+
+@login_required
+@transaction.atomic
+def delete_fee_transaction(request, transaction_id):
+    """
+    Removes a fee transaction permanently and rolls back corresponding paid tracking fields.
+    """
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Unauthorized financial operation.")
+
+    transaction_record = get_object_or_404(FeePaymentTransaction, id=transaction_id)
+    account = transaction_record.term_fee_account
+
+    try:
+        if transaction_record.is_confirmed:
+            account.total_amount_paid -= transaction_record.amount
+            account.save()
+
+        ref = transaction_record.reference_number
+        transaction_record.delete()
+        messages.success(request, f"Transaction reference record {ref} dropped completely.")
+    except Exception as e:
+        messages.error(request, f"Failed to expunge ledger line: {str(e)}")
+
+    return redirect('attendance:fees_dashboard')
+
+
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from attendance.models import User, AcademicTerm, StaffPaymentRecord
+
+@login_required
+def staff_payments_dashboard(request):
+    user = request.user
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+
+    if user.role == User.IS_STUDENT:
+        raise PermissionDenied("Students are not permitted to access staff ledger payroll balances.")
+
+    # Rule Verification: Admins/Accountants see everything.
+    # Wardens (User.IS_WARDEN) and Teachers see ONLY their own records ordered by month.
+    if user.role in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        payments = StaffPaymentRecord.objects.all().select_related('staff', 'processed_by', 'term').order_by('-payment_date')
+        is_management = True
+    else:
+        # Wardens fall here: Restricted strictly to their own rows, sorted by latest month/date
+        payments = StaffPaymentRecord.objects.filter(staff=user).select_related('staff', 'processed_by', 'term').order_by('-payment_date')
+        is_management = False
+        print(payments)
+        
+
+    if request.method == 'POST':
+        # Guard clause: Protects the endpoint from unauthorized form submissions
+        if user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+            raise PermissionDenied("Unauthorized transaction entry blocked.")
+            
+        if not current_term:
+            messages.error(request, "Cannot process payroll without an active current academic term defined.")
+            return redirect('attendance:staff_payments_dashboard')
+
+        staff_id = request.POST.get('staff_id')
+        amount = request.POST.get('amount')
+        ref = request.POST.get('reference_number')
+        desc = request.POST.get('description', '')
+        
+        try:
+            target_staff = User.objects.get(id=staff_id)
+            StaffPaymentRecord.objects.create(
+                staff=target_staff,
+                amount=amount,
+                reference_number=ref,
+                description=desc,
+                term=current_term,
+                processed_by=user if user.role == User.IS_ACCOUNTANT else None
+            )
+            messages.success(request, f"Payment successfully released to {target_staff.username}.")
+        except Exception as e:
+            messages.error(request, f"Failed to log transaction: {str(e)}")
+        return redirect('attendance:staff_payments_dashboard')
+
+    all_staff = User.objects.exclude(role=User.IS_STUDENT) if is_management else None
+
+    context = {
+        'payments': payments,
+        'is_management': is_management,
+        'all_staff': all_staff,
+        'current_term': current_term
+    }
+    return render(request, 'attendance/staff_payments_dashboard.html', context)
+
+@login_required
+@transaction.atomic
+def edit_staff_payment(request, payment_id):
+    """
+    Overwrites the complete state parameters for a recorded staff payout.
+    """
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Unauthorized payroll access.")
+
+    payment = get_object_or_404(StaffPaymentRecord, id=payment_id)
+
+    if request.method == 'POST':
+        try:
+            staff_id = request.POST.get('staff_id')
+            amount = request.POST.get('amount')
+            ref = request.POST.get('reference_number').strip()
+            desc = request.POST.get('description', '')
+            term_id = request.POST.get('term_id')
+
+            payment.staff = get_object_or_404(User, id=staff_id)
+            payment.amount = Decimal(amount)
+            payment.reference_number = ref
+            payment.description = desc
+            if term_id:
+                payment.term = get_object_or_404(AcademicTerm, id=term_id)
+            payment.processed_by = request.user
+            payment.save()
+
+            messages.success(request, f"Staff disbursement reference {ref} rewritten completely.")
+        except Exception as e:
+            messages.error(request, f"Failed to modify payload: {str(e)}")
+
+    return redirect('attendance:staff_payments_dashboard')
+
+
+@login_required
+@transaction.atomic
+def delete_staff_payment(request, payment_id):
+    """
+    Deletes a staff payroll payment slip item line.
+    """
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Unauthorized payroll access.")
+
+    payment = get_object_or_404(StaffPaymentRecord, id=payment_id)
+    try:
+        ref = payment.reference_number
+        payment.delete()
+        messages.success(request, f"Staff payment record {ref} expunged successfully.")
+    except Exception as e:
+        messages.error(request, f"Failed to delete transaction: {str(e)}")
+
+    return redirect('attendance:staff_payments_dashboard')
+
+
+@login_required
+@transaction.atomic
+def record_payment_attempt(request):
+    """
+    Logs an unconfirmed remittance claim attached to a student's active term account balance.
+    """
+    if request.user.role != User.IS_ACCOUNTANT:
+        return HttpResponse("Unauthorized", status=403)
+
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+    if not current_term:
+        messages.error(request, "Operational registration failure: No active academic term defined.")
+        return redirect('attendance:fees_dashboard')
+
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        amount = Decimal(request.POST.get('amount', '0.00'))
+        ref_num = request.POST.get('reference_number', '').strip()
+        method = request.POST.get('payment_method')
+
+        student_profile = get_object_or_404(StudentProfile, reg_number=student_id)
+        fee_account, created = StudentTermFee.objects.get_or_create(
+            student=student_profile,
+            term=current_term
+        )
+        
+        try:
+            FeePaymentTransaction.objects.create(
+                term_fee_account=fee_account,
+                amount=amount,
+                payment_method=method,
+                reference_number=ref_num,
+                is_confirmed=False
+            )
+            messages.success(request, f"Payment trace statement logged for {student_profile.name}. Awaiting auditing.")
+        except Exception as e:
+            messages.error(request, f"Failed to record transaction line: Reference ID might already exist.")
+
+    return redirect('attendance:fees_dashboard')
+
+
+@login_required
+@transaction.atomic
+def confirm_student_payment(request, transaction_id):
+    """
+    Audits an unconfirmed remittance claim and mutates the linked active term balances.
+    """
+    if request.user.role != User.IS_ACCOUNTANT:
+        return HttpResponse("Unauthorized", status=403)
+
+    transaction_record = get_object_or_404(FeePaymentTransaction, id=transaction_id)
+    
+    if not transaction_record.is_confirmed:
+        transaction_record.is_confirmed = True
+        transaction_record.date_confirmed = timezone.now()
+        transaction_record.processed_by = request.user
+        transaction_record.save()
+        
+        account = transaction_record.term_fee_account
+        account.total_amount_paid += transaction_record.amount
+        account.save()
+        
+        messages.success(request, f"Transaction code {transaction_record.reference_number} verified. Balance updated successfully.")
+    else:
+        messages.warning(request, "This target payment slip has already been settled and audited.")
+
+    return redirect('attendance:fees_dashboard')
+
+
+from django.core.exceptions import PermissionDenied
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.db.models import Q
+from attendance.models import User, DisciplinaryRecord, StudentProfile, TimetableEntry
+
+@login_required
+def disciplinary_dashboard(request):
+    user = request.user
+    records = DisciplinaryRecord.objects.all().select_related('student__stream', 'reported_by')
+    
+    # -------------------------------------------------------------------------
+    # 1. RECORD VISIBILITY FILTER
+    # -------------------------------------------------------------------------
+    if user.role in [User.IS_ADMIN, User.IS_WARDEN]:
+        # MODIFIED: Warden can now view ALL disciplinary entries without restrictions
+        pass
+        
+    elif user.role == User.IS_TEACHER:
+        teacher_streams = TimetableEntry.objects.filter(
+            batch__is_active=True, 
+            teacher__user=user
+        ).values_list('stream_id', flat=True)
+        
+        records = records.filter(
+            Q(student__stream_id__in=teacher_streams) | 
+            Q(reported_by=user)
+        )
+        
+    elif user.role == User.IS_STUDENT:
+        records = records.filter(student__user=user)
+    else:
+        records = records.filter(reported_by=user)
+
+    # -------------------------------------------------------------------------
+    # 2. ELIGIBLE TARGET STUDENT LIST
+    # -------------------------------------------------------------------------
+    if user.role in [User.IS_ADMIN, User.IS_WARDEN]:
+        # MODIFIED: Warden can view the full student roster to select a target profile
+        eligible_students = StudentProfile.objects.all()
+    elif user.role == User.IS_TEACHER:
+        eligible_students = StudentProfile.objects.all() 
+    else:
+        eligible_students = StudentProfile.objects.none()
+
+    # -------------------------------------------------------------------------
+    # 3. PERMISSION FLAGS SYSTEM
+    # -------------------------------------------------------------------------
+    # MODIFIED: Added Warden to allowed form-reporting roles (fixes template mismatch)
+    can_report = user.role in [User.IS_ADMIN, User.IS_TEACHER, User.IS_WARDEN]
+    is_admin = user.role == User.IS_ADMIN
+
+    context = {
+        'records': records,
+        'students': eligible_students,
+        'severities': DisciplinaryRecord.SEVERITY_LEVELS,
+        'can_report': can_report,  # Matched variable named inside the HTML template
+        'is_admin': is_admin,      # Checked by template to evaluate action rows
+    }
+    return render(request, 'attendance/disciplinary_dashboard.html', context)
+
+
+@login_required
+@transaction.atomic
+def add_complaint(request):
+    # Security block: Students cannot record complaints
+    if request.user.role == User.IS_STUDENT:
+        return HttpResponseForbidden("Access Denied: Students cannot log disciplinary complaints.")
+
+    if request.method == 'POST':
+        student_id = request.POST.get('student_id')
+        subject = request.POST.get('subject', '').strip()
+        details = request.POST.get('details', '').strip()
+        severity = request.POST.get('severity')
+
+        student = get_object_or_404(StudentProfile, reg_number=student_id)
+        
+        DisciplinaryRecord.objects.create(
+            student=student,
+            subject=subject,
+            details=details,
+            severity=severity,
+            reported_by=request.user
+        )
+        messages.success(request, f"Disciplinary report successfully logged against {student.name}.")
+    
+    return redirect('attendance:disciplinary_dashboard')
+
+
+@login_required
+@transaction.atomic
+def delete_complaint(request, record_id):
+    record = get_object_or_404(DisciplinaryRecord, id=record_id)
+    
+    # Ownership Guard: Admin can delete anything, staff can only delete what they reported
+    if request.user.role == User.IS_ADMIN or record.reported_by == request.user:
+        record.delete()
+        messages.success(request, "Disciplinary complaint record successfully expunged.")
+        return redirect('attendance:disciplinary_dashboard')
+        
+    return HttpResponseForbidden("Action Blocked: You can only delete incidents originally logged by yourself.")
+
+    
 # ---------- Custom Error Handlers ----------
 
 def custom_page_not_found(request, exception):

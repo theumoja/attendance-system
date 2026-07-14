@@ -1,19 +1,23 @@
 import random
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
+from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from attendance.models import (
     User, Department, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
-    TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord
+    AcademicTerm, StudentTermFee, FeePaymentTransaction, LibraryRecord, 
+    TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord,
+    Hostel, Room, RoomAllocation, DisciplinaryRecord, StaffPaymentRecord
 )
 
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Seeds the database with test data for all features including departments'
+    help = 'Seeds the database with a full roster, attendance records, and data for the accountant, library, lodgings, and disciplinary sectors.'
 
     def handle(self, *args, **options):
-        self.stdout.write('Starting seed...')
+        self.stdout.write('Starting comprehensive database seed...')
 
         # ---------- 1. Create Admin ----------
         admin_user, _ = User.objects.get_or_create(
@@ -27,16 +31,79 @@ class Command(BaseCommand):
         )
         admin_user.set_password('admin123')
         admin_user.save()
-        self.stdout.write('Admin created.')
+        self.stdout.write('Admin user verified.')
 
-        # ---------- 2. Create Departments ----------
-        self.stdout.write('Creating Departments...')
+        # ---------- 2. Create Specialized Staff Roles ----------
+        # Accountant
+        accountant_user, created = User.objects.get_or_create(
+            username='sam_accountant',
+            defaults={'email': 'sam.accountant@utc.ac.ug', 'role': User.IS_ACCOUNTANT}
+        )
+        if created:
+            accountant_user.set_password('accountant123')
+            accountant_user.save()
+
+        # Librarian
+        librarian_user, created = User.objects.get_or_create(
+            username='jane_librarian',
+            defaults={'email': 'jane.librarian@utc.ac.ug', 'role': User.IS_LIBRARIAN}
+        )
+        if created:
+            librarian_user.set_password('librarian123')
+            librarian_user.save()
+
+        # Warden (Lodgings)
+        warden_user, created = User.objects.get_or_create(
+            username='mary_warden',
+            defaults={'email': 'mary.warden@utc.ac.ug', 'role': User.IS_WARDEN}
+        )
+        if created:
+            warden_user.set_password('warden123')
+            warden_user.save()
+            
+        self.stdout.write('Specialized institutional staff profiles initialized.')
+
+        # ---------- 3. Create Academic Terms ----------
+        today_date = timezone.localdate()
+        
+        # Historical term entries to populate structural lookups
+        term_1, _ = AcademicTerm.objects.get_or_create(
+            academic_year='2025/2026',
+            term='TERM_1',
+            defaults={
+                'start_date': today_date - timedelta(days=270),
+                'end_date': today_date - timedelta(days=180),
+                'is_current': False
+            }
+        )
+        term_2, _ = AcademicTerm.objects.get_or_create(
+            academic_year='2025/2026',
+            term='TERM_2',
+            defaults={
+                'start_date': today_date - timedelta(days=170),
+                'end_date': today_date - timedelta(days=100),
+                'is_current': False
+            }
+        )
+        # Active operational term block
+        current_term, _ = AcademicTerm.objects.get_or_create(
+            academic_year='2025/2026',
+            term='TERM_3',
+            defaults={
+                'start_date': today_date - timedelta(days=90),
+                'end_date': today_date + timedelta(days=30),
+                'is_current': True
+            }
+        )
+        self.stdout.write('Institutional operational terms mapped.')
+
+        # ---------- 4. Create Departments ----------
         dept_cit, _ = Department.objects.get_or_create(name='Computing and Information Technology')
         dept_biz, _ = Department.objects.get_or_create(name='Business Studies')
         dept_edu, _ = Department.objects.get_or_create(name='Education')
-        self.stdout.write('Departments created.')
+        self.stdout.write('Core departments verified.')
 
-        # ---------- 3. Create Courses and CourseUnits ----------
+        # ---------- 5. Create Courses and CourseUnits ----------
         courses_data = [
             {
                 'code': 'CIT', 
@@ -71,48 +138,31 @@ class Command(BaseCommand):
         ]
 
         for course_info in courses_data:
-            course, created = Course.objects.get_or_create(
+            course, _ = Course.objects.get_or_create(
                 code=course_info['code'],
-                defaults={
-                    'name': course_info['name'],
-                    'department': course_info['department']
-                }
+                defaults={'name': course_info['name'], 'department': course_info['department']}
             )
-            if not created:
-                course.name = course_info['name']
-                course.department = course_info['department']
-                course.save()
-                
-            self.stdout.write(f'Course {course.code} assigned to Department: "{course.department.name}".')
-            
             for unit_code, unit_name in course_info['units']:
-                unit, _ = CourseUnit.objects.get_or_create(
+                CourseUnit.objects.get_or_create(
                     code=unit_code,
                     defaults={'name': unit_name, 'course': course}
                 )
-                self.stdout.write(f'  Unit {unit.code} created.')
+        self.stdout.write('Academic courses and modules indexed.')
 
-        # ---------- 4. Create Streams for Courses ----------
+        # ---------- 6. Create Streams for Courses ----------
         unique_streams_data = [
-            ('CIT', 'Year 1 CIT A'), ('CIT', 'Year 1 CIT B'), ('CIT', 'Year 1 CIT C'),
-            ('CIT', 'Year 2 CIT A'), ('CIT', 'Year 2 CIT B'), ('CIT', 'Year 2 CIT C'),
-            ('CIT', 'Year 3 CIT A'), ('CIT', 'Year 3 CIT B'),
+            ('CIT', 'Year 1 CIT A'), ('CIT', 'Year 1 CIT B'),
             ('BBA', 'Year 1 BBA A'), ('BBA', 'Year 1 BBA B'),
-            ('BBA', 'Year 2 BBA A'), ('BBA', 'Year 2 BBA B'),
-            ('BBA', 'Year 3 BBA A'), ('BBA', 'Year 3 BBA B'),
-            ('EDU', 'Year 1 EDU A'), ('EDU', 'Year 1 EDU B'),
-            ('EDU', 'Year 2 EDU A'), ('EDU', 'Year 2 EDU B'),
-            ('EDU', 'Year 3 EDU A')
+            ('EDU', 'Year 1 EDU A'), ('EDU', 'Year 1 EDU B')
         ]
 
-        streams_dict = {}
+        all_streams = []
         for course_code, stream_name in unique_streams_data:
             course_obj = Course.objects.get(code=course_code)
             stream_obj, _ = Stream.objects.get_or_create(name=stream_name, course=course_obj)
-            streams_dict[stream_name] = stream_obj
-            self.stdout.write(f'  Stream "{stream_name}" registered for Course {course_code}.')
+            all_streams.append(stream_obj)
 
-        # ---------- 5. Create Teachers ----------
+        # ---------- 7. Create Teachers ----------
         teacher_list = [
             ('Dr. James Muwonge', 'james.muwonge@utc.ac.ug'),
             ('Prof. Grace Nambi', 'grace.nambi@utc.ac.ug'),
@@ -125,180 +175,249 @@ class Command(BaseCommand):
             username = email.split('@')[0]
             user, created = User.objects.get_or_create(
                 username=username,
-                defaults={
-                    'email': email,
-                    'role': User.IS_TEACHER,
-                    'raw_password_archive': 'teacher123'
-                }
+                defaults={'email': email, 'role': User.IS_TEACHER}
             )
             if created:
                 user.set_password('teacher123')
                 user.save()
-                teacher = TeacherProfile.objects.create(user=user, name=name)
-                teachers.append(teacher)
-                self.stdout.write(f'Teacher {name} created.')
-            else:
-                teacher, _ = TeacherProfile.objects.get_or_create(user=user, defaults={'name': name})
-                teachers.append(teacher)
-                self.stdout.write(f'Teacher {name} already exists.')
+            teacher, _ = TeacherProfile.objects.get_or_create(user=user, defaults={'name': name})
+            teachers.append(teacher)
 
-        # ---------- 6. Create Students ----------
-        cit_course = Course.objects.get(code='CIT')
-        bba_course = Course.objects.get(code='BBA')
-        edu_course = Course.objects.get(code='EDU')
+        # ---------- 8. Create Hostels and Rooms (Lodgings) ----------
+        hostel_m, _ = Hostel.objects.get_or_create(name='Albert Nile Hall', location='North Campus Zone')
+        hostel_f, _ = Hostel.objects.get_or_create(name='Victoria Hall', location='East Campus Zone')
+        
+        all_rooms = []
+        for room_num in ['A1', 'A2', 'B1', 'B2', 'C1']:
+            r1, _ = Room.objects.get_or_create(hostel=hostel_m, name_or_number=room_num, defaults={'capacity': 4})
+            r2, _ = Room.objects.get_or_create(hostel=hostel_f, name_or_number=room_num, defaults={'capacity': 4})
+            all_rooms.extend([r1, r2])
+        self.stdout.write('Hostel infrastructure and room distribution maps generated.')
 
-        student_data = [
-            ('Aisha Nakato', '2024/001', 'aisha.nakato@utc.ac.ug', cit_course, 'Year 1 CIT A'),
-            ('Brian Ssali', '2024/002', 'brian.ssali@utc.ac.ug', cit_course, 'Year 1 CIT A'),
-            ('Christine Akello', '2024/003', 'christine.akello@utc.ac.ug', cit_course, 'Year 1 CIT B'),
-            ('David Obote', '2024/004', 'david.obote@utc.ac.ug', bba_course, 'Year 1 BBA A'),
-            ('Eva Mbabazi', '2024/005', 'eva.mbabazi@utc.ac.ug', bba_course, 'Year 1 BBA A'),
-            ('Frank Opio', '2024/006', 'frank.opio@utc.ac.ug', bba_course, 'Year 2 BBA A'),
-            ('Grace Auma', '2024/007', 'grace.auma@utc.ac.ug', edu_course, 'Year 1 EDU A'),
-            ('Henry Ochieng', '2024/008', 'henry.ochieng@utc.ac.ug', edu_course, 'Year 1 EDU B'),
-            ('Irene Nalongo', '2024/009', 'irene.nalongo@utc.ac.ug', cit_course, 'Year 2 CIT A'),
-            ('John Kisakye', '2024/010', 'john.kisakye@utc.ac.ug', bba_course, 'Year 3 BBA A'),
+        # ---------- 9. Dynamic Student Roster & Sector Records Seeding ----------
+        self.stdout.write('Generating student cohorts along with library, lodging, and financial records...')
+        
+        first_names = ['Musa', 'Abel', 'Ivan', 'Emmanuel', 'Sarah', 'Joy', 'Harriet', 'Brenda', 'Derrick', 'Charles']
+        last_names = ['Otim', 'Okello', 'Mukasa', 'Kato', 'Wasswa', 'Opio', 'Mwenge', 'Kigozi', 'Nsubuga', 'Mugisha']
+
+        sample_books = [
+            'Introduction to Python Programming', 'Database Systems: Practical Guide', 
+            'Advanced Financial Accounting', 'Principles of Marketing', 
+            'Educational Psychology Frameworks', 'Network Routing Fundamentals'
         ]
 
-        students = []
-        for name, reg, email, course, stream_name in student_data:
-            username = reg.replace('/', '_')
-            user, created = User.objects.get_or_create(
-                username=username,
+        student_counter = 100
+        all_students = []
+
+        for stream in all_streams:
+            num_students = random.randint(12, 15)
+            for _ in range(num_students):
+                student_counter += 1
+                reg_number = f"2024/{student_counter:03d}"
+                full_name = f"{random.choice(first_names)} {random.choice(last_names)}"
+                email = f"{full_name.lower().replace(' ', '.')}@utc.ac.ug"
+
+                user, created = User.objects.get_or_create(
+                    username=reg_number.replace('/', '_'),
+                    defaults={'email': email, 'role': User.IS_STUDENT}
+                )
+                if created:
+                    user.set_password('student123')
+                    user.save()
+
+                student_prof, _ = StudentProfile.objects.get_or_create(
+                    reg_number=reg_number,
+                    defaults={'user': user, 'name': full_name, 'course': stream.course, 'stream': stream}
+                )
+                all_students.append(student_prof)
+
+                # --- Seed Accountant Data (Student Term Fees) ---
+                base_fees = Decimal('1500000.00')
+                paid_amount = Decimal(random.choice(['0.00', '500000.00', '1000000.00', '1500000.00']))
+                
+                fee_acc, _ = StudentTermFee.objects.get_or_create(
+                    student=student_prof,
+                    term=current_term,
+                    defaults={'total_fees_due': base_fees, 'total_amount_paid': paid_amount}
+                )
+
+                # If they made a payment, log a transaction linked to the account
+                if paid_amount > 0:
+                    FeePaymentTransaction.objects.get_or_create(
+                        term_fee_account=fee_acc,
+                        amount=paid_amount,
+                        reference_number=f"TXN-{student_counter}-{random.randint(1000, 9999)}",
+                        defaults={
+                            'payment_method': random.choice(['BANK_DEPOSIT', 'MOBILE_MONEY', 'CASH']),
+                            'is_confirmed': True,
+                            'date_confirmed': timezone.now(),
+                            'processed_by': accountant_user
+                        }
+                    )
+
+                # --- MODIFIED: Seed Lodgings Data to align with your multi-term schema modifications ---
+                
+                # A. Simulate historical allocations for Term 2 (demonstrating data persistence)
+                if random.random() < 0.40:
+                    historical_room = random.choice(all_rooms)
+                    # Check Term 2 capacity explicitly
+                    if historical_room.allocations.filter(term=term_2).count() < historical_room.capacity:
+                        RoomAllocation.objects.get_or_create(
+                            student=student_prof,
+                            term=term_2,  # Part of unique_together constraint lookup
+                            defaults={
+                                'room': historical_room, 
+                                'allocated_by': warden_user
+                            }
+                        )
+
+                # B. Current Term Room Allocations (~50% of the active student cohort)
+                if random.random() < 0.50:
+                    assigned_room = random.choice(all_rooms)
+                    
+                    # CHANGE 1: Filter capacity constraints specifically by current term 
+                    # so historical entries from Term 2 don't falsely mark rooms as full!
+                    current_occupancy = assigned_room.allocations.filter(term=current_term).count()
+                    
+                    if current_occupancy < assigned_room.capacity:
+                        # CHANGE 2: Included 'term' alongside 'student' inside the query lookup fields
+                        # to properly honor your unique_together = ('student', 'term') architecture.
+                        RoomAllocation.objects.get_or_create(
+                            student=student_prof,
+                            term=current_term, 
+                            defaults={
+                                'room': assigned_room, 
+                                'allocated_by': warden_user,
+                            }
+                        )
+
+                # --- Seed Library Data (~30% of students borrowing books) ---
+                if random.random() < 0.30:
+                    is_returned_flag = random.choice([True, False])
+                    LibraryRecord.objects.create(
+                        student=student_prof,
+                        book_title=random.choice(sample_books),
+                        date_issued=timezone.now().date() - timedelta(days=random.randint(5, 20)),
+                        is_returned=is_returned_flag,
+                        date_returned=timezone.now().date() if is_returned_flag else None,
+                        issued_by=librarian_user,
+                        term=current_term
+                    )
+
+        # --- Seed Staff Payout Logs ---
+        for teacher in teachers:
+            StaffPaymentRecord.objects.get_or_create(
+                reference_number=f"SAL-{teacher.user.id}-{random.randint(10000, 99999)}",
                 defaults={
-                    'email': email,
-                    'role': User.IS_STUDENT,
-                    'raw_password_archive': 'student123'
+                    'staff': teacher.user,
+                    'amount': Decimal('2800000.00'),
+                    'payment_date': today_date - timedelta(days=10),
+                    'payment_method': 'BANK_TRANSFER',
+                    'description': 'Monthly Institutional Teaching Compensation',
+                    'term': current_term,
+                    'processed_by': accountant_user
                 }
             )
-            
-            stream_obj = streams_dict[stream_name]
-            
-            if created:
-                user.set_password('student123')
-                user.save()
-                student = StudentProfile.objects.create(
-                    reg_number=reg,
-                    user=user,
-                    name=name,
-                    course=course,
-                    stream=stream_obj
-                )
-                students.append(student)
-                self.stdout.write(f'Student {name} ({reg}) created in stream {stream_name}.')
-            else:
-                student, _ = StudentProfile.objects.get_or_create(
-                    reg_number=reg,
-                    defaults={'user': user, 'name': name, 'course': course, 'stream': stream_obj}
-                )
-                student.stream = stream_obj
-                student.save()
-                students.append(student)
-                self.stdout.write(f'Student {name} ({reg}) already exists.')
 
-        # ---------- 7. Create Timetable Batch and Entries ----------
+        # --- Seed Disciplinary Records (Inject a small handful of incidents) ---
+        disciplinary_targets = random.sample(all_students, k=min(len(all_students), 5))
+        infractions = [
+            ("Examination Malpractice", "Caught with unauthorized summarized notes during the mid-term tests.", "SEVERE"),
+            ("Hostel Property Damage", "Accidental destruction of common room structural fittings during evening matches.", "MILD"),
+            ("Curfew Breach", "Repeatedly arriving at the residential halls past official gate closure limits.", "MILD"),
+            ("Library Book Defacement", "Tearing out core reference material pages from structural textbooks.", "VERY_SEVERE")
+        ]
+        
+        for idx, target_student in enumerate(disciplinary_targets):
+            infraction = infractions[idx % len(infractions)]
+            DisciplinaryRecord.objects.create(
+                student=target_student,
+                subject=infraction[0],
+                details=infraction[1],
+                severity=infraction[2],
+                reported_by=random.choice(teachers).user,
+                term=current_term
+            )
+
+        self.stdout.write('Financial ledger matrix, housing logs, and active library operations established.')
+
+        # ---------- 10. MULTI-WEEK TIMETABLE & HISTORICAL ATTENDANCE GENERATOR ----------
+        self.stdout.write('Generating structural attendance line history (Past 12 Weeks)...')
+        
         today = datetime.now().date()
-        days_ahead = 0 - today.weekday()
-        if days_ahead < 0:
-            days_ahead += 7
-        week_start = today + timedelta(days=days_ahead)
-        if week_start < today:
-            week_start = today
-
-        batch, _ = TimetableBatch.objects.get_or_create(
-            week_start_date=week_start,
-            is_active=True,
-            defaults={'is_revoked': False}
-        )
-        self.stdout.write(f'Timetable batch created for week starting {week_start}.')
-
-        TimetableEntry.objects.filter(batch=batch).delete()
-
-        cit101 = CourseUnit.objects.get(code='CIT101')
-        cit102 = CourseUnit.objects.get(code='CIT102')
-        cit103 = CourseUnit.objects.get(code='CIT103')
-        bba201 = CourseUnit.objects.get(code='BBA201')
-        bba202 = CourseUnit.objects.get(code='BBA202')
-        bba203 = CourseUnit.objects.get(code='BBA203')
-        edu301 = CourseUnit.objects.get(code='EDU301')
-        edu302 = CourseUnit.objects.get(code='EDU302')
-        edu303 = CourseUnit.objects.get(code='EDU303')
-
-        teacher1 = teachers[0]
-        teacher2 = teachers[1]
-        teacher3 = teachers[2]
-        teacher4 = teachers[3]
-
-        schedule = [
-            ('MON', '08:30', '10:00', cit101, teacher1, 'Year 1 CIT A'),
-            ('MON', '10:15', '11:45', bba201, teacher2, 'Year 1 BBA A'),
-            ('MON', '12:00', '13:30', edu301, teacher3, 'Year 1 EDU A'),
-            ('MON', '14:00', '15:30', cit102, teacher1, 'Year 2 CIT A'),
-            ('TUE', '08:30', '10:00', cit103, teacher4, 'Year 2 CIT B'),
-            ('TUE', '10:15', '11:45', bba202, teacher2, 'Year 2 BBA A'),
-            ('TUE', '12:00', '13:30', edu302, teacher3, 'Year 2 EDU A'),
-            ('TUE', '14:00', '15:30', cit101, teacher1, 'Year 1 CIT B'),
-            ('WED', '08:30', '10:00', bba203, teacher2, 'Year 3 BBA A'),
-            ('WED', '10:15', '11:45', edu303, teacher3, 'Year 3 EDU A'),
-            ('WED', '12:00', '13:30', cit102, teacher1, 'Year 2 CIT B'),
-            ('WED', '14:00', '15:30', cit103, teacher4, 'Year 3 CIT A'),
-            ('THU', '08:30', '10:00', bba201, teacher2, 'Year 1 BBA B'),
-            ('THU', '10:15', '11:45', cit101, teacher1, 'Year 1 CIT C'),
-            ('THU', '12:00', '13:30', edu301, teacher3, 'Year 1 EDU B'),
-            ('THU', '14:00', '15:30', bba202, teacher2, 'Year 2 BBA B'),
-            ('FRI', '08:30', '10:00', cit102, teacher1, 'Year 2 CIT C'),
-            ('FRI', '10:15', '11:45', edu302, teacher3, 'Year 2 EDU B'),
-            ('FRI', '12:00', '13:30', bba203, teacher2, 'Year 3 BBA B'),
-            ('FRI', '14:00', '15:30', cit103, teacher4, 'Year 3 CIT B'),
+        current_week_start = today - timedelta(days=today.weekday())
+        
+        schedule_blueprint = [
+            ('MON', '08:30', '10:00', 'CIT101', teachers[0], 'Year 1 CIT A'),
+            ('MON', '10:15', '11:45', 'BBA201', teachers[1], 'Year 1 BBA A'),
+            ('MON', '12:00', '13:30', 'EDU301', teachers[2], 'Year 1 EDU A'),
+            ('TUE', '08:30', '10:00', 'CIT103', teachers[3], 'Year 1 CIT A'),
+            ('TUE', '10:15', '11:45', 'BBA202', teachers[1], 'Year 1 BBA A'),
+            ('WED', '08:30', '10:00', 'BBA203', teachers[1], 'Year 1 BBA A'),
+            ('WED', '10:15', '11:45', 'EDU303', teachers[2], 'Year 1 EDU A'),
+            ('THU', '08:30', '10:00', 'BBA201', teachers[1], 'Year 1 BBA B'),
+            ('THU', '10:15', '11:45', 'CIT101', teachers[0], 'Year 1 CIT B'),
+            ('FRI', '08:30', '10:00', 'CIT102', teachers[0], 'Year 1 CIT B'),
         ]
 
-        for day, start_str, end_str, unit, teacher, stream_name in schedule:
-            start_time = datetime.strptime(start_str, '%H:%M').time()
-            end_time = datetime.strptime(end_str, '%H:%M').time()
-            
-            stream_obj = streams_dict[stream_name]
-            
-            TimetableEntry.objects.create(
-                batch=batch,
-                day=day,
-                start_time=start_time,
-                end_time=end_time,
-                course_unit=unit,
-                teacher=teacher,
-                stream=stream_obj
+        cu_map = {cu.code: cu for cu in CourseUnit.objects.all()}
+        day_index_offset = {'MON': 0, 'TUE': 1, 'WED': 2, 'THU': 3, 'FRI': 4}
+
+        for weeks_ago in range(12, -1, -1):
+            target_week_start = current_week_start - timedelta(weeks=weeks_ago)
+            is_active_week = (weeks_ago == 0)
+
+            TimetableBatch.objects.filter(week_start_date=target_week_start).delete()
+
+            batch = TimetableBatch.objects.create(
+                week_start_date=target_week_start,
+                is_active=is_active_week,
+                is_revoked=False,
+                term=current_term
             )
-            self.stdout.write(f'  Created timetable entry: {day} {start_str}-{end_str} {unit.code} ({stream_name})')
 
-        # ---------- 8. Create Attendance Sessions and Records ----------
-        entries = TimetableEntry.objects.filter(batch=batch)
-
-        for entry in entries:
-            base_date = week_start
-            day_map = {'MON': 0, 'TUE': 1, 'WED': 2, 'THU': 3, 'FRI': 4, 'SAT': 5, 'SUN': 6}
-            offset = day_map[entry.day]
-            session_date = base_date + timedelta(days=offset)
-
-            for i in range(random.randint(1, 2)):
-                session, created = AttendanceSession.objects.get_or_create(
-                    timetable_entry=entry,
-                    date_marked=session_date,
-                    defaults={
-                        'teacher_latitude': random.uniform(-1.0, 1.0),
-                        'teacher_longitude': random.uniform(30.0, 32.0),
-                    }
+            for day_code, s_time, e_time, cu_code, teacher_obj, stream_name in schedule_blueprint:
+                start_t = datetime.strptime(s_time, '%H:%M').time()
+                end_t = datetime.strptime(e_time, '%H:%M').time()
+                stream_obj = Stream.objects.get(name=stream_name)
+                
+                entry = TimetableEntry.objects.create(
+                    batch=batch,
+                    day=day_code,
+                    start_time=start_t,
+                    end_time=end_t,
+                    course_unit=cu_map[cu_code],
+                    teacher=teacher_obj,
+                    stream=stream_obj
                 )
-                if not created:
+
+                session_date = target_week_start + timedelta(days=day_index_offset[day_code])
+                if session_date > today:
                     continue
 
-                students_in_stream = StudentProfile.objects.filter(stream=entry.stream)
+                session = AttendanceSession.objects.create(
+                    timetable_entry=entry,
+                    teacher_latitude=random.uniform(-0.1, 0.1),
+                    teacher_longitude=random.uniform(32.4, 32.6)
+                )
+                AttendanceSession.objects.filter(id=session.id).update(date_marked=session_date)
 
-                for student in students_in_stream:
-                    status = 'PRESENT' if random.random() < 0.8 else 'ABSENT'
-                    AttendanceRecord.objects.create(
-                        session=session,
-                        student=student,
-                        status=status
+                presence_probability = 0.84
+                if day_code == 'FRI':
+                    presence_probability -= 0.10
+                if weeks_ago in [5, 6]:
+                    presence_probability -= 0.08
+
+                presence_probability = max(0.50, min(0.98, presence_probability))
+                target_students = StudentProfile.objects.filter(stream=entry.stream)
+                records_pool = []
+                
+                for student in target_students:
+                    computed_status = 'PRESENT' if random.random() < presence_probability else 'ABSENT'
+                    records_pool.append(
+                        AttendanceRecord(session=session, student=student, status=computed_status)
                     )
-                self.stdout.write(f'  Created attendance session for {entry.course_unit.code} ({entry.stream.name}) on {session_date} with {students_in_stream.count()} records.')
+                
+                AttendanceRecord.objects.bulk_create(records_pool)
 
-        self.stdout.write(self.style.SUCCESS('Seed completed successfully!'))
+        self.stdout.write(self.style.SUCCESS('Seed completed successfully! Academic, Administrative and specialized roles seed data is now fully active.'))

@@ -25,13 +25,7 @@ def custom_login_view(request):
     return render(request, 'attendance/login.html', {'form': form})
 
 def redirect_user_by_role(user):
-    """Helper function to route users to their specific hub."""
-    if user.role == User.IS_ADMIN:
-        return redirect('attendance:admin_dashboard')
-    elif user.role == User.IS_TEACHER:
-        return redirect('attendance:teacher_dashboard')
-    else:
-        return redirect('attendance:student_dashboard')
+    return redirect('attendance:home')
 
 @login_required
 def change_password_view(request):

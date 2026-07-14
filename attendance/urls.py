@@ -23,7 +23,12 @@ urlpatterns = [
     path('admin-ui/upload/courses/', views_admin.bulk_upload_courses, name='bulk_upload_courses'),
     path('admin-ui/upload/teachers/', views_admin.bulk_upload_teachers, name='bulk_upload_teachers'),
     path('admin-ui/upload/students/', views_admin.bulk_upload_students, name='bulk_upload_students'),
-    path('admin-ui/upload/timetable/', views_admin.upload_timetable, name='upload_timetable'),
+
+    # 1. Dashboard directory listing all streams/classes and their timetable statuses
+    path('timetable/manage/', views_admin.manage_timetable, name='manage_timetable'),
+    # 2. Scoped interactive matrix editor for a specific stream/class
+    path('timetable/upload/<int:stream_id>/', views_admin.upload_timetable, name='upload_timetable'),
+    #path('admin-ui/upload/timetable/', views_admin.upload_timetable, name='upload_timetable'),
 
     # Outbound structural export arrays
     path('admin-ui/export/credentials/<str:role_type>/', views_admin.export_credentials, name='export_credentials'),
@@ -82,6 +87,47 @@ urlpatterns = [
     path('departments/add/', views_admin.add_department, name='add_department'),
     path('analytics/', views_admin.analytics_dashboard, name='analytics_dashboard'),
     path('admin-ui/upload/timetable/pdf/', views_admin.export_timetable_pdf, name='export_timetable_pdf'),
+
+
+    # 1. Admin Role & User Management Dashboard
+    path('admin/users/', views_admin.manage_users, name='manage_users'),
+
+    # 2. Lodgings & Hostel Overview (Viewable by everyone based on template permissions)
+    path('lodgings/', views_users.view_lodgings, name='view_lodgings'),
+
+    # 3. Lodging Allocation Execution Endpoint (Strictly processed by Wardens)
+    path('lodgings/allocate/', views_users.allocate_or_reallocate, name='allocate_or_reallocate'),
+
+
+
+    path('library/', views_users.library_dashboard, name='library_dashboard'),
+    path('library/issue/', views_users.process_book_issue, name='process_book_issue'),
+    path('library/return/<int:record_id>/', views_users.process_book_return, name='process_book_return'),
+
+
+    path('finance/', views_users.fees_dashboard, name='fees_dashboard'),
+    path('staff_payments_dashboard/', views_users.staff_payments_dashboard, name='staff_payments_dashboard'),
+    path('finance/record/', views_users.record_payment_attempt, name='record_payment_attempt'),
+    path('finance/confirm/<int:transaction_id>/', views_users.confirm_student_payment, name='confirm_student_payment'),
+
+
+    path('fees/confirm/<int:transaction_id>/', views_users.confirm_student_payment, name='confirm_student_payment'),
+    
+    # New Management CRUD routing gates
+    path('fees/edit/<int:transaction_id>/', views_users.edit_fee_transaction, name='edit_fee_transaction'),
+    path('fees/delete/<int:transaction_id>/', views_users.delete_fee_transaction, name='delete_fee_transaction'),
+    path('staff-payments/edit/<int:payment_id>/', views_users.edit_staff_payment, name='edit_staff_payment'),
+    path('staff-payments/delete/<int:payment_id>/', views_users.delete_staff_payment, name='delete_staff_payment'),
+    path('accountant-dashboard/', views_users.accountant_dashboard, name='accountant_dashboard'),
+
+
+    path('disciplinary/', views_users.disciplinary_dashboard, name='disciplinary_dashboard'),
+    path('disciplinary/add/', views_users.add_complaint, name='add_complaint'),
+    path('disciplinary/delete/<int:record_id>/', views_users.delete_complaint, name='delete_complaint'),
+    
+
+    # In attendance/urls.py
+    path('warden-dashboard/', views_users.warden_dashboard, name='warden_dashboard'),
 
 
     path('password-reset/', 

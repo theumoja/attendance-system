@@ -818,106 +818,155 @@ from django.contrib import messages
 from datetime import datetime
 from .models import TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile, Stream
 
+import json
+from datetime import datetime
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import transaction
+from attendance.models import User, Stream, TimetableBatch, TimetableEntry, CourseUnit, TeacherProfile
+
+
+@login_required
+def manage_timetable(request):
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    # Fetch active batch
+    batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first()
+    
+    # Handle optional clear action to wipe old test data and start fresh
+    if request.GET.get('action') == 'clear_all' and batch:
+        TimetableEntry.objects.filter(batch=batch).delete()
+        messages.success(request, "All old timetable entries have been cleared. You now have a clean slate.")
+        return redirect('attendance:manage_timetable')
+
+    streams = Stream.objects.select_related('course').all()
+    
+    # Strictly filter and count entries that actually belong to each stream for this batch
+    streams_list = []
+    for stream in streams:
+        entry_count = 0
+        if batch:
+            entry_count = TimetableEntry.objects.filter(batch=batch, stream=stream).count()
+            
+        streams_list.append({
+            'id': stream.id,
+            'name': stream.name,
+            'course_name': stream.course.name if stream.course else "No Course Assigned",
+            'has_timetable': entry_count > 0,  # True only if entries exist specifically for this class
+            'entry_count': entry_count
+        })
+
+    return render(request, 'attendance/manage_timetable_list.html', {
+        'streams_list': streams_list,
+        'batch': batch
+    })
+
 @login_required
 @transaction.atomic
-def upload_timetable(request):
-    # Retrieve or initialize the single master schedule batch
+def upload_timetable(request, stream_id):
+    """
+    Interactive Timetable Matrix Editor focused strictly on an individual stream/class.
+    Omits stream selection from cells and saves all configurations under the current stream.
+    """
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+
+    stream_obj = get_object_or_404(Stream, id=stream_id)
+
+    # Retrieve or initialize active batch configuration
     batch = TimetableBatch.objects.filter(is_active=True, is_revoked=False).order_by('-uploaded_at').first()
     if not batch:
         batch = TimetableBatch.objects.create(week_start_date=datetime.now().date(), is_active=True)
 
-    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK] # ['MON', 'TUE', 'WED', ...]
+    DAYS = [code for code, _ in TimetableEntry.DAYS_OF_WEEK]
 
     if request.method == 'POST':
-        # 1. Clear all existing rows under this master batch to prepare for a full form overwrite
-        TimetableEntry.objects.filter(batch=batch).delete()
+        # Wipe existing records for this stream under the current batch to overwrite cleanly
+        TimetableEntry.objects.filter(batch=batch, stream=stream_obj).delete()
+
+        row_indexes = request.POST.getlist('row_index')
         
-        row_indices = request.POST.getlist('row_index')
-        saved_count = 0
-        
-        # 2. Iterate through every time interval row submitted from the matrix form
-        for index in row_indices:
-            start_str = request.POST.get(f'start_time_{index}')
-            end_str = request.POST.get(f'end_time_{index}')
+        for idx in row_indexes:
+            start_time = request.POST.get(f'start_time_{idx}')
+            end_time = request.POST.get(f'end_time_{idx}')
             
-            if not start_str or not end_str:
-                continue
-                
-            start_t = datetime.strptime(start_str, '%H:%M').time()
-            end_t = datetime.strptime(end_str, '%H:%M').time()
-            
-            if start_t >= end_t:
+            if not start_time or not end_time:
                 continue
 
-            # 3. For each row, check every day column coordinate cell
-            for day in DAYS:
-                cu_code = request.POST.get(f'cu_{index}_{day}')      # String Primary Key
-                teacher_id = request.POST.get(f'teacher_{index}_{day}')  # Int Primary Key
-                stream_id = request.POST.get(f'stream_{index}_{day}')    # Int Primary Key
-                
-                # Only create an entry if the entire coordination slot is completed
-                if cu_code and teacher_id and stream_id:
-                    TimetableEntry.objects.create(
-                        batch=batch, 
-                        day=day, 
-                        start_time=start_t, 
-                        end_time=end_t,
-                        course_unit_id=cu_code,  # Matches models.py char code PK
-                        teacher_id=int(teacher_id), 
-                        stream_id=int(stream_id)
-                    )
-                    saved_count += 1
-        
-        messages.success(request, f"Timetable synchronized successfully! {saved_count} assigned slots are active.")
-        return redirect('attendance:upload_timetable')
+            for day_code in DAYS:
+                cu_code = request.POST.get(f'cu_{idx}_{day_code}')
+                teacher_id = request.POST.get(f'teacher_{idx}_{day_code}')
 
-    # --- GET: Render the Current Matrix State ---
-    entries = TimetableEntry.objects.filter(batch=batch).order_by('start_time')
+                # Save record if a course unit is chosen for this slot
+                if cu_code:
+                    try:
+                        course_unit = CourseUnit.objects.get(code=cu_code)
+                        teacher = TeacherProfile.objects.get(id=teacher_id) if teacher_id else None
+                        
+                        if teacher:
+                            TimetableEntry.objects.create(
+                                batch=batch,
+                                day=day_code,
+                                start_time=start_time,
+                                end_time=end_time,
+                                course_unit=course_unit,
+                                teacher=teacher,
+                                stream=stream_obj # Contextually assigned class stream
+                            )
+                    except Exception as e:
+                        pass
+
+        messages.success(request, f"Timetable configuration saved successfully for class '{stream_obj.name}'.")
+        return redirect('attendance:upload_timetable', stream_id=stream_obj.id)
+
+    # GET Process: Construct matrix rows specifically for this stream
+    existing_entries = TimetableEntry.objects.filter(batch=batch, stream=stream_obj).select_related('course_unit', 'teacher')
     
-    # Restructure individual records back into a structured 2D table layout
-    grouped_slots = {}
-    for entry in entries:
-        time_key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M'))
-        if time_key not in grouped_slots:
-            grouped_slots[time_key] = {}
-        grouped_slots[time_key][entry.day] = entry
+    # Group entries by unique time slots
+    time_slots_map = {}
+    for entry in existing_entries:
+        key = (entry.start_time.strftime('%H:%M'), entry.end_time.strftime('%H:%M'))
+        if key not in time_slots_map:
+            time_slots_map[key] = {}
+        time_slots_map[key][entry.day] = entry
 
     matrix_rows = []
-    for idx, ((start, end), day_map) in enumerate(grouped_slots.items()):
-        ordered_slots = []
-        for day in DAYS:
-            ordered_slots.append({
-                'day_code': day,
-                'entry': day_map.get(day)
+    counter = 0
+    for (start, end), day_entries in time_slots_map.items():
+        slots = []
+        for day_code in DAYS:
+            slots.append({
+                'day_code': day_code,
+                'entry': day_entries.get(day_code)
             })
         matrix_rows.append({
-            'index': idx,
+            'index': counter,
             'start': start,
             'end': end,
-            'slots': ordered_slots
+            'slots': slots
         })
+        counter += 1
 
-    # Generate lookups mapping course units to qualified instructors
+    # Generate qualified instructor mapping arrays
     cu_lecturer_map = {}
     for cu in CourseUnit.objects.all():
         teachers = TeacherProfile.objects.filter(courses=cu.course)
         if not teachers.exists():
-            teachers = TeacherProfile.objects.all()  # Fallback: display all if unassigned
-            
+            teachers = TeacherProfile.objects.all()
         cu_lecturer_map[str(cu.code)] = [
             {'id': t.id, 'name': t.name} for t in teachers
         ]
 
     context = {
+        'stream': stream_obj,
         'matrix_rows': matrix_rows,
         'days': TimetableEntry.DAYS_OF_WEEK,
         'course_units': CourseUnit.objects.all(),
-        'streams': Stream.objects.all(),
         'cu_lecturer_map_json': json.dumps(cu_lecturer_map),
     }
     return render(request, 'attendance/upload_timetable.html', context)
-
-
 
 def download_template(request, template_type):
     response = HttpResponse(content_type='text/csv')
@@ -2448,3 +2497,28 @@ def export_timetable_pdf(request):
     # 5. Compile payload contents out to the client download pipeline stream
     doc.build(story)
     return response
+
+
+@login_required
+@transaction.atomic
+def manage_users(request):
+    # Guard to ensure only ADMIN can view or change roles
+    if request.user.role != User.IS_ADMIN:
+        return HttpResponse("Unauthorized", status=403)
+        
+    if request.method == 'POST':
+        user_id = request.POST.get('user_id')
+        new_role = request.POST.get('role')
+        
+        if user_id and new_role in dict(User.ROLE_CHOICES):
+            target_user = get_object_or_404(User, id=user_id)
+            target_user.role = new_role
+            target_user.save()
+            messages.success(request, f"Updated role for {target_user.username} to {new_role}.")
+            return redirect('attendance:manage_users')
+
+    all_users = User.objects.all().order_by('username')
+    return render(request, 'attendance/manage_users.html', {
+        'all_users': all_users,
+        'role_choices': User.ROLE_CHOICES
+    })

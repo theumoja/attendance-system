@@ -33,6 +33,22 @@
         margin-right: 0.4rem;
         color: var(--primary, #2563eb);
     }
+    .forgot-password-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.4rem;
+    }
+    .forgot-password-link {
+        font-size: 0.85rem;
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+    .forgot-password-link:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
     .alert-danger {
         background: #fee2e2;
         color: #991b1b;
@@ -63,6 +79,7 @@
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
+        margin-top: 0.5rem;
     }
     .login-btn:hover {
         transform: translateY(-2px);
@@ -149,7 +166,6 @@
         <form method="POST" novalidate>
             {% csrf_token %}
 
-            <!-- Dynamic Error Feedback Routing Matrix -->
             {% if form.errors %}
                 <div class="alert-danger">
                     <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
@@ -182,6 +198,12 @@
                 <input type="password" name="password" required id="id_password"
                        placeholder="••••••••"
                        class="form-control">
+                
+                <div class="forgot-password-container">
+                    <a href="{% url 'attendance:password_reset' %}" class="forgot-password-link">
+                        Forgot Password?
+                    </a>
+                </div>
             </div>
 
             <button type="submit" class="login-btn">

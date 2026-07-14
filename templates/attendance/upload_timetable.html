@@ -16,23 +16,24 @@
 
 <div style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
     <div>
-        <h2><i class="fas fa-calendar-alt"></i> Interactive Timetable Matrix Editor</h2>
-        <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">Modifying or adding records preserves the entire sheet layout when saved.</p>
+        <a href="{% url 'attendance:manage_timetable' %}" style="text-decoration: none; font-size: 0.9rem; color: #2b3e85; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0.5rem;">
+            <i class="fas fa-arrow-left"></i> Back to Stream Directory
+        </a>
+        <h2><i class="fas fa-calendar-alt"></i> Matrix Editor: <span style="color: #2b3e85;">{{ stream.name }}</span></h2>
+        <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">Modifying or adding records preserves the entire configuration layout specifically for this class block context.</p>
     </div>
-    <a href="{% url 'attendance:export_timetable_pdf' %}" class="btn" style="background: #dc2626; border-radius: var(--radius-sm); text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
-        <i class="fas fa-file-pdf"></i> Download PDF
-    </a>
-    <button type="button" id="addTimeRowBtn" class="btn" style="background: #2b3e85; border-radius: var(--radius-sm);">
-        <i class="fas fa-plus"></i> Append New Time Interval Row
-    </button>
-
+    <div>
+        <button type="button" id="addTimeRowBtn" class="btn" style="background: #2b3e85; border-radius: var(--radius-sm);">
+            <i class="fas fa-plus"></i> Append New Time Interval Row
+        </button>
+    </div>
 </div>
 
 <form method="POST" id="matrixForm">
     {% csrf_token %}
     
     <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #cbd5e1;">
-        <table style="width: 100%; border-collapse: collapse; min-width: 1300px; font-size: 0.85rem;" id="matrixTable">
+        <table style="width: 100%; border-collapse: collapse; min-width: 1200px; font-size: 0.85rem;" id="matrixTable">
             <thead>
                 <tr style="background: #2b3e85; color: white; text-align: center;">
                     <th style="padding: 0.75rem; width: 160px; border-right: 1px solid #cbd5e1;">Time Range</th>
@@ -58,7 +59,7 @@
                         <div class="cell-stack">
                             <select name="cu_{{ row.index }}_{{ slot.day_code }}" 
                                     class="matrix-select cu-select" 
-                                    data-selected-teacher="{{ slot.entry.teacher.id }}"
+                                    data-selected-teacher="{% if slot.entry.teacher %}{{ slot.entry.teacher.id }}{% endif %}"
                                     title="Course Unit">
                                 <option value="">-- Select Course --</option>
                                 {% for cu in course_units %}
@@ -68,13 +69,6 @@
                             
                             <select name="teacher_{{ row.index }}_{{ slot.day_code }}" class="matrix-select teacher-select" title="Lecturer">
                                 <option value="">-- Choose Course First --</option>
-                            </select>
-
-                            <select name="stream_{{ row.index }}_{{ slot.day_code }}" class="matrix-select stream-select" title="Stream Class">
-                                <option value="">-- Select Stream --</option>
-                                {% for s in streams %}
-                                    <option value="{{ s.id }}" {% if slot.entry.stream.id == s.id %}selected{% endif %}>{{ s.name }}</option>
-                                {% endfor %}
                             </select>
                         </div>
                     </td>
@@ -97,13 +91,19 @@
                     {% for day_code, _ in days %}
                     <td style="padding: 0.4rem; background: #f8fafc; border-right: 1px solid #cbd5e1; vertical-align: top;">
                         <div class="cell-stack">
-                            <select name="cu_0_{{ day_code }}" class="matrix-select cu-select"><option value="">-- Select Course --</option>{% for cu in course_units %}<option value="{{ cu.code }}">{{ cu.code }} - {{ cu.name }}</option>{% endfor %}</select>
-                            <select name="teacher_0_{{ day_code }}" class="matrix-select teacher-select"><option value="">-- Choose Course First --</option></select>
-                            <select name="stream_0_{{ day_code }}" class="matrix-select stream-select"><option value="">-- Select Stream --</option>{% for s in streams %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select>
+                            <select name="cu_0_{{ day_code }}" class="matrix-select cu-select">
+                                <option value="">-- Select Course --</option>
+                                {% for cu in course_units %}<option value="{{ cu.code }}">{{ cu.code }} - {{ cu.name }}</option>{% endfor %}
+                            </select>
+                            <select name="teacher_0_{{ day_code }}" class="matrix-select teacher-select">
+                                <option value="">-- Choose Course First --</option>
+                            </select>
                         </div>
                     </td>
                     {% endfor %}
-                    <td style="text-align: center; background: #f1f5f9;"><button type="button" class="delete-row-btn" onclick="removeRow(this)"><i class="fas fa-trash-alt"></i></button></td>
+                    <td style="text-align: center; background: #f1f5f9;">
+                        <button type="button" class="delete-row-btn" onclick="removeRow(this)"><i class="fas fa-trash-alt"></i></button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -112,7 +112,7 @@
 
     <div style="margin-top: 1.5rem; text-align: right;">
         <button type="submit" class="btn" style="background: #22c55e; border-radius: var(--radius-sm); padding: 0.75rem 2.5rem; font-size: 1rem;">
-            <i class="fas fa-save"></i> Save Full Timetable Configuration
+            <i class="fas fa-save"></i> Save {{ stream.name }} Configuration
         </button>
     </div>
 </form>
@@ -136,10 +136,6 @@
                     <select name="teacher___INDEX___{{ day_code }}" class="matrix-select teacher-select">
                         <option value="">-- Choose Course First --</option>
                     </select>
-                    <select name="stream___INDEX___{{ day_code }}" class="matrix-select stream-select">
-                        <option value="">-- Select Stream --</option>
-                        {% for s in streams %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-                    </select>
                 </div>
             </td>
             {% endfor %}
@@ -149,7 +145,6 @@
         </tr>
     </tbody>
 </table>
-
 
 <style>
     .cell-stack { display: flex; flex-direction: column; gap: 4px; }
@@ -168,7 +163,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('matrixBody');
     const templateHTML = document.getElementById('rowTemplate').innerHTML;
 
-    // Filters and assigns dependent Teacher options dynamically based on Course choices
     function handleCuChange(cuSelect, targetTeacherId = null) {
         const cellStack = cuSelect.closest('.cell-stack');
         const teacherSelect = cellStack.querySelector('.teacher-select');
@@ -214,20 +208,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Initialize dropdown assignments based on saved records
     document.querySelectorAll('.cu-select').forEach(select => {
         const savedTeacherId = select.getAttribute('data-selected-teacher');
         handleCuChange(select, savedTeacherId);
     });
 
-    // Handle updates when course blocks change values interactively
     document.getElementById('matrixTable').addEventListener('change', function(e) {
         if (e.target && e.target.classList.contains('cu-select')) {
             handleCuChange(e.target);
         }
     });
 
-    // Dynamic row generation script
     let uniqueIndexCounter = document.querySelectorAll('.matrix-row').length + 100;
     addBtn.addEventListener('click', function() {
         uniqueIndexCounter++;
@@ -243,7 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Comprehensive client-side sequence protection validation
     document.getElementById('matrixForm').addEventListener('submit', function(e) {
         const rows = document.querySelectorAll('.matrix-row');
         for (let row of rows) {
