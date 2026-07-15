@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from attendance.models import (
     User, Department, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
-    AcademicTerm, StudentTermFee, FeePaymentTransaction, LibraryRecord, 
+    AcademicTerm, StudentTermFee, FeePaymentTransaction, Book, LibraryRecord,
     TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord,
     Hostel, Room, RoomAllocation, DisciplinaryRecord, StaffPaymentRecord
 )
@@ -18,6 +18,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write('Starting comprehensive database seed...')
+
+        # ---------- 0. Clear existing academic terms to avoid overlap conflicts ----------
+        AcademicTerm.objects.all().delete()
+        self.stdout.write('Existing academic terms purged.')
 
         # ---------- 1. Create Admin ----------
         admin_user, _ = User.objects.get_or_create(
@@ -65,8 +69,7 @@ class Command(BaseCommand):
 
         # ---------- 3. Create Academic Terms ----------
         today_date = timezone.localdate()
-        
-        # Historical term entries to populate structural lookups
+       
         term_1, _ = AcademicTerm.objects.get_or_create(
             academic_year='2025/2026',
             term='TERM_1',
@@ -85,7 +88,6 @@ class Command(BaseCommand):
                 'is_current': False
             }
         )
-        # Active operational term block
         current_term, _ = AcademicTerm.objects.get_or_create(
             academic_year='2025/2026',
             term='TERM_3',
@@ -186,7 +188,7 @@ class Command(BaseCommand):
         # ---------- 8. Create Hostels and Rooms (Lodgings) ----------
         hostel_m, _ = Hostel.objects.get_or_create(name='Albert Nile Hall', location='North Campus Zone')
         hostel_f, _ = Hostel.objects.get_or_create(name='Victoria Hall', location='East Campus Zone')
-        
+       
         all_rooms = []
         for room_num in ['A1', 'A2', 'B1', 'B2', 'C1']:
             r1, _ = Room.objects.get_or_create(hostel=hostel_m, name_or_number=room_num, defaults={'capacity': 4})
@@ -194,17 +196,33 @@ class Command(BaseCommand):
             all_rooms.extend([r1, r2])
         self.stdout.write('Hostel infrastructure and room distribution maps generated.')
 
-        # ---------- 9. Dynamic Student Roster & Sector Records Seeding ----------
+        # ---------- 9. Create sample books for library ----------
+        sample_books = [
+            'Introduction to Python Programming', 
+            'Database Systems: Practical Guide', 
+            'Advanced Financial Accounting', 
+            'Principles of Marketing', 
+            'Educational Psychology Frameworks', 
+            'Network Routing Fundamentals'
+        ]
+        book_objects = []
+        for title in sample_books:
+            book, _ = Book.objects.get_or_create(
+                title=title,
+                defaults={
+                    'author': random.choice(['John Doe', 'Jane Smith', 'Robert Johnson', 'Maria Garcia']),
+                    'isbn': f'978-{random.randint(1000000000, 9999999999)}'[:13],
+                    'total_copies': random.randint(3, 8),
+                    'available_copies': random.randint(1, 6)
+                }
+            )
+            book_objects.append(book)
+
+        # ---------- 10. Dynamic Student Roster & Sector Records Seeding ----------
         self.stdout.write('Generating student cohorts along with library, lodging, and financial records...')
-        
+       
         first_names = ['Musa', 'Abel', 'Ivan', 'Emmanuel', 'Sarah', 'Joy', 'Harriet', 'Brenda', 'Derrick', 'Charles']
         last_names = ['Otim', 'Okello', 'Mukasa', 'Kato', 'Wasswa', 'Opio', 'Mwenge', 'Kigozi', 'Nsubuga', 'Mugisha']
-
-        sample_books = [
-            'Introduction to Python Programming', 'Database Systems: Practical Guide', 
-            'Advanced Financial Accounting', 'Principles of Marketing', 
-            'Educational Psychology Frameworks', 'Network Routing Fundamentals'
-        ]
 
         student_counter = 100
         all_students = []
@@ -234,14 +252,13 @@ class Command(BaseCommand):
                 # --- Seed Accountant Data (Student Term Fees) ---
                 base_fees = Decimal('1500000.00')
                 paid_amount = Decimal(random.choice(['0.00', '500000.00', '1000000.00', '1500000.00']))
-                
+               
                 fee_acc, _ = StudentTermFee.objects.get_or_create(
                     student=student_prof,
                     term=current_term,
                     defaults={'total_fees_due': base_fees, 'total_amount_paid': paid_amount}
                 )
 
-                # If they made a payment, log a transaction linked to the account
                 if paid_amount > 0:
                     FeePaymentTransaction.objects.get_or_create(
                         term_fee_account=fee_acc,
@@ -255,53 +272,44 @@ class Command(BaseCommand):
                         }
                     )
 
-                # --- MODIFIED: Seed Lodgings Data to align with your multi-term schema modifications ---
-                
-                # A. Simulate historical allocations for Term 2 (demonstrating data persistence)
+                # --- Seed Lodgings Data (multi-term) ---
                 if random.random() < 0.40:
                     historical_room = random.choice(all_rooms)
-                    # Check Term 2 capacity explicitly
                     if historical_room.allocations.filter(term=term_2).count() < historical_room.capacity:
                         RoomAllocation.objects.get_or_create(
                             student=student_prof,
-                            term=term_2,  # Part of unique_together constraint lookup
-                            defaults={
-                                'room': historical_room, 
-                                'allocated_by': warden_user
-                            }
+                            term=term_2,
+                            defaults={'room': historical_room, 'allocated_by': warden_user}
                         )
 
-                # B. Current Term Room Allocations (~50% of the active student cohort)
                 if random.random() < 0.50:
                     assigned_room = random.choice(all_rooms)
-                    
-                    # CHANGE 1: Filter capacity constraints specifically by current term 
-                    # so historical entries from Term 2 don't falsely mark rooms as full!
                     current_occupancy = assigned_room.allocations.filter(term=current_term).count()
-                    
                     if current_occupancy < assigned_room.capacity:
-                        # CHANGE 2: Included 'term' alongside 'student' inside the query lookup fields
-                        # to properly honor your unique_together = ('student', 'term') architecture.
                         RoomAllocation.objects.get_or_create(
                             student=student_prof,
                             term=current_term, 
-                            defaults={
-                                'room': assigned_room, 
-                                'allocated_by': warden_user,
-                            }
+                            defaults={'room': assigned_room, 'allocated_by': warden_user}
                         )
 
-                # --- Seed Library Data (~30% of students borrowing books) ---
+                # --- Seed Library Data (using Book model) ---
                 if random.random() < 0.30:
-                    is_returned_flag = random.choice([True, False])
+                    book = random.choice(book_objects)
+                    issued = random.choice([True, False])
+                    issue_date = timezone.now().date() - timedelta(days=random.randint(5, 20))
+                    # Ensure at least one copy available
+                    if book.available_copies < 1:
+                        book.available_copies = random.randint(1, 3)
+                        book.total_copies = book.available_copies
+                        book.save()
                     LibraryRecord.objects.create(
                         student=student_prof,
-                        book_title=random.choice(sample_books),
-                        date_issued=timezone.now().date() - timedelta(days=random.randint(5, 20)),
-                        is_returned=is_returned_flag,
-                        date_returned=timezone.now().date() if is_returned_flag else None,
-                        issued_by=librarian_user,
-                        term=current_term
+                        book=book,
+                        issue_date=issue_date,
+                        due_date=issue_date + timedelta(days=14),
+                        return_date=issue_date + timedelta(days=random.randint(1, 12)) if issued else None,
+                        status='RETURNED' if issued else 'ISSUED',
+                        remarks=random.choice(['', 'Good condition', 'Slight wear', 'Needs repair'])
                     )
 
         # --- Seed Staff Payout Logs ---
@@ -319,7 +327,7 @@ class Command(BaseCommand):
                 }
             )
 
-        # --- Seed Disciplinary Records (Inject a small handful of incidents) ---
+        # --- Seed Disciplinary Records ---
         disciplinary_targets = random.sample(all_students, k=min(len(all_students), 5))
         infractions = [
             ("Examination Malpractice", "Caught with unauthorized summarized notes during the mid-term tests.", "SEVERE"),
@@ -327,7 +335,7 @@ class Command(BaseCommand):
             ("Curfew Breach", "Repeatedly arriving at the residential halls past official gate closure limits.", "MILD"),
             ("Library Book Defacement", "Tearing out core reference material pages from structural textbooks.", "VERY_SEVERE")
         ]
-        
+       
         for idx, target_student in enumerate(disciplinary_targets):
             infraction = infractions[idx % len(infractions)]
             DisciplinaryRecord.objects.create(
@@ -341,12 +349,12 @@ class Command(BaseCommand):
 
         self.stdout.write('Financial ledger matrix, housing logs, and active library operations established.')
 
-        # ---------- 10. MULTI-WEEK TIMETABLE & HISTORICAL ATTENDANCE GENERATOR ----------
+        # ---------- 11. MULTI-WEEK TIMETABLE & HISTORICAL ATTENDANCE ----------
         self.stdout.write('Generating structural attendance line history (Past 12 Weeks)...')
-        
+       
         today = datetime.now().date()
         current_week_start = today - timedelta(days=today.weekday())
-        
+       
         schedule_blueprint = [
             ('MON', '08:30', '10:00', 'CIT101', teachers[0], 'Year 1 CIT A'),
             ('MON', '10:15', '11:45', 'BBA201', teachers[1], 'Year 1 BBA A'),
@@ -380,7 +388,7 @@ class Command(BaseCommand):
                 start_t = datetime.strptime(s_time, '%H:%M').time()
                 end_t = datetime.strptime(e_time, '%H:%M').time()
                 stream_obj = Stream.objects.get(name=stream_name)
-                
+               
                 entry = TimetableEntry.objects.create(
                     batch=batch,
                     day=day_code,
@@ -411,13 +419,13 @@ class Command(BaseCommand):
                 presence_probability = max(0.50, min(0.98, presence_probability))
                 target_students = StudentProfile.objects.filter(stream=entry.stream)
                 records_pool = []
-                
+               
                 for student in target_students:
                     computed_status = 'PRESENT' if random.random() < presence_probability else 'ABSENT'
                     records_pool.append(
                         AttendanceRecord(session=session, student=student, status=computed_status)
                     )
-                
+               
                 AttendanceRecord.objects.bulk_create(records_pool)
 
         self.stdout.write(self.style.SUCCESS('Seed completed successfully! Academic, Administrative and specialized roles seed data is now fully active.'))

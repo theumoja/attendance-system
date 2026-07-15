@@ -30,8 +30,11 @@ def home(request):
     
     elif request.user.role == User.IS_ACCOUNTANT:
         return redirect('attendance:accountant_dashboard')
+
+    elif request.user.role == User.IS_LIBRARIAN:
+        return redirect('attendance:librarian_dashboard')
         
-    else:
+    elif request.user.role == User.IS_STUDENT:
         return redirect('attendance:student_dashboard')
 
 from django.db import transaction  # <-- Add this missing import
@@ -220,63 +223,366 @@ def warden_dashboard(request):
     }
     return render(request, 'attendance/warden_dashboard.html', context)
 
-@login_required
-def library_dashboard(request):
-    # Fetch all records, putting active logs on top
-    records = LibraryRecord.objects.select_related('student').all().order_by('is_returned', '-date_issued')
-    
-    context = {
-        'records': records,
-        'is_librarian': request.user.role == User.IS_LIBRARIAN
-    }
-    
-    # If Librarian, pull contextual information needed for processing forms
-    if request.user.role == User.IS_LIBRARIAN:
-        context['students'] = StudentProfile.objects.all().order_by('name')
-        
-    return render(request, 'attendance/library_dashboard.html', context)
 
+from datetime import datetime, timedelta
+from django.utils import timezone
+from django.db import transaction
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponseForbidden
+
+# ---------- ENHANCED LIBRARY CONTROLLER INTERFACES ----------
+
+@login_required
+def librarian_dashboard(request):
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return render(request, 'errors/403.html', status=403)
+    
+    total_titles = Book.objects.count()
+    # sum of all book copies in stock
+    total_stock = Book.objects.aggregate(models.Sum('total_copies'))['total_copies__sum'] or 0
+    active_issues = LibraryRecord.objects.filter(status='ISSUED').count()
+    returned = LibraryRecord.objects.filter(status='RETURNED').count()
+    
+    # Generate charts trends for the past 6 months
+    today = timezone.now().date()
+    monthly_data = []
+    monthly_labels = []
+    for i in range(5, -1, -1):
+        date_cursor = today - timedelta(days=30 * i)
+        month_name = date_cursor.strftime('%b')
+        month_num = date_cursor.month
+        year_num = date_cursor.year
+        count = LibraryRecord.objects.filter(
+            issue_date__month=month_num, 
+            issue_date__year=year_num
+        ).count()
+        monthly_labels.append(month_name)
+        monthly_data.append(count)
+
+    context = {
+        'total_records': LibraryRecord.objects.count(), # keeps support for original templates
+        'active_issues': active_issues,
+        'returned': returned,
+        'total_titles': total_titles,
+        'total_stock': total_stock,
+        'monthly_labels': monthly_labels,
+        'monthly_data': monthly_data,
+    }
+    return render(request, 'attendance/librarian_dashboard.html', context)
+
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db import transaction
+from django.utils import timezone
+from datetime import timedelta
+from .models import User, StudentProfile, TeacherProfile, Book, LibraryRecord
 
 @login_required
 @transaction.atomic
-def process_book_issue(request):
-    if request.user.role != User.IS_LIBRARIAN:
-        return HttpResponse("Unauthorized", status=403)
+def manage_library(request):
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return render(request, 'errors/403.html', status=403)
+    
+    # Inline quick issuance submit handler (enhanced for quantities)
+    if request.method == 'POST':
+        borrower_type = request.POST.get('borrower_type')
+        student_id = request.POST.get('student_id')
+        teacher_id = request.POST.get('teacher_id')
+        
+        # Get arrays from the enhanced form
+        book_ids = request.POST.getlist('book_ids[]')
+        quantities = request.POST.getlist('quantities[]')
+        
+        remarks = request.POST.get('remarks', '')
+        due_date = timezone.now().date() + timedelta(days=14)  # Default 14 days
+
+        student_obj = None
+        teacher_obj = None
+        
+        if borrower_type == 'student' and student_id:
+            student_obj = get_object_or_404(StudentProfile, reg_number=student_id)
+        elif borrower_type == 'teacher' and teacher_id:
+            # LOOKUP BY NAME (since front-end sends the teacher's name)
+            teacher_obj = get_object_or_404(TeacherProfile, name=teacher_id)
+            
+        if not student_obj and not teacher_obj:
+            messages.error(request, "Please choose a valid Student or Teacher.")
+            return redirect('attendance:manage_library')
+            
+        if not book_ids:
+            messages.error(request, "Please select at least one book to issue.")
+            return redirect('attendance:manage_library')
+        
+        # Validate quantities match
+        if len(book_ids) != len(quantities):
+            messages.error(request, "Invalid data: book and quantity mismatch.")
+            return redirect('attendance:manage_library')
+            
+        issued_count = 0
+        for b_id, qty_str in zip(book_ids, quantities):
+            try:
+                qty = int(qty_str)
+            except ValueError:
+                qty = 1
+            if qty < 1:
+                qty = 1
+                
+            book = get_object_or_404(Book, id=b_id)
+            if book.available_copies < qty:
+                messages.error(
+                    request,
+                    f"Not enough copies of '{book.title}'. Available: {book.available_copies}, requested: {qty}."
+                )
+                return redirect('attendance:manage_library')
+            
+            for _ in range(qty):
+                LibraryRecord.objects.create(
+                    student=student_obj,
+                    teacher=teacher_obj,
+                    book=book,
+                    due_date=due_date,
+                    remarks=remarks,
+                    status='ISSUED'
+                )
+                book.available_copies -= 1
+                book.save()
+                issued_count += 1
+                
+        if issued_count > 0:
+            messages.success(request, f"Successfully processed {issued_count} book(s) issuance.")
+        else:
+            messages.error(request, "Transaction aborted: Selected book(s) are out of stock.")
+            
+        return redirect('attendance:manage_library')
+
+    # GET – render the page
+    records = LibraryRecord.objects.select_related('student', 'teacher', 'book').all().order_by('-issue_date')
+    books = Book.objects.all().order_by('title')
+    students = StudentProfile.objects.all().order_by('name')
+    teachers = TeacherProfile.objects.all().order_by('name')
+
+    return render(request, 'attendance/manage_library.html', {
+        'records': records,
+        'books': books,
+        'students': students,
+        'teachers': teachers,
+    })
+
+@login_required
+def library_reader_dashboard(request):
+    """
+    For students and teachers: show their borrowed books + a searchable book catalog.
+    """
+    if request.user.role not in [User.IS_STUDENT, User.IS_TEACHER]:
+        return render(request, 'errors/403.html', status=403)
+
+    profile = None
+    borrowed_records = []
+
+    if request.user.role == User.IS_STUDENT:
+        try:
+            profile = request.user.student_profile
+            borrowed_records = LibraryRecord.objects.filter(student=profile).order_by('-issue_date')
+        except StudentProfile.DoesNotExist:
+            pass
+    elif request.user.role == User.IS_TEACHER:
+        try:
+            profile = request.user.teacher_profile
+            borrowed_records = LibraryRecord.objects.filter(teacher=profile).order_by('-issue_date')
+        except TeacherProfile.DoesNotExist:
+            pass
+
+    all_books = Book.objects.all().order_by('title')
+
+    context = {
+        'borrowed_records': borrowed_records,
+        'all_books': all_books,
+        'profile': profile,
+        'role': request.user.role,
+    }
+    return render(request, 'attendance/library_reader.html', context)
+
+
+
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db import transaction
+from django.utils import timezone
+from datetime import datetime, timedelta
+from .models import User, StudentProfile, TeacherProfile, Book, LibraryRecord
+
+@login_required
+@transaction.atomic
+def issue_book(request):
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return render(request, 'errors/403.html', status=403)
         
     if request.method == 'POST':
+        borrower_type = request.POST.get('borrower_type')
         student_id = request.POST.get('student_id')
-        book_title = request.POST.get('book_title', '').strip()
+        teacher_id = request.POST.get('teacher_id')
+        book_ids = request.POST.getlist('book_ids[]')
+        quantities = request.POST.getlist('quantities[]')
+        due_date_str = request.POST.get('due_date')
+        remarks = request.POST.get('remarks', '')
         
-        if student_id and book_title:
-            student = get_object_or_404(StudentProfile, reg_number=student_id)
-            LibraryRecord.objects.create(
-                student=student,
-                book_title=book_title,
-                issued_by=request.user
-            )
-            messages.success(request, f"Successfully logged issuance of '{book_title}' to {student.name}.")
+        if due_date_str:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
         else:
-            messages.error(request, "All required collection fields must be provided.")
+            due_date = timezone.now().date() + timedelta(days=14)
             
-    return redirect('attendance:library_dashboard')
+        student_obj = None
+        teacher_obj = None
+        
+        if borrower_type == 'student':
+            if not student_id:
+                messages.error(request, "Select a valid Student borrower.")
+                return redirect('attendance:issue_book')
+            student_obj = get_object_or_404(StudentProfile, reg_number=student_id)
+        elif borrower_type == 'teacher':
+            if not teacher_id:
+                messages.error(request, "Select a valid Teacher borrower.")
+                return redirect('attendance:issue_book')
+            # LOOKUP BY NAME (front-end sends the teacher's name)
+            teacher_obj = get_object_or_404(TeacherProfile, name=teacher_id)
+            
+        if not book_ids:
+            messages.error(request, "You must select one or more books.")
+            return redirect('attendance:issue_book')
+        
+        if len(book_ids) != len(quantities):
+            messages.error(request, "Invalid data: book and quantity mismatch.")
+            return redirect('attendance:issue_book')
+        
+        issued_count = 0
+        for b_id, qty_str in zip(book_ids, quantities):
+            try:
+                qty = int(qty_str)
+            except ValueError:
+                qty = 1
+            if qty < 1:
+                qty = 1
+                
+            book = get_object_or_404(Book, id=b_id)
+            
+            if book.available_copies < qty:
+                messages.error(
+                    request, 
+                    f"Not enough copies of '{book.title}'. Available: {book.available_copies}, requested: {qty}."
+                )
+                return redirect('attendance:issue_book')
+            
+            for _ in range(qty):
+                LibraryRecord.objects.create(
+                    student=student_obj,
+                    teacher=teacher_obj,
+                    book=book,
+                    due_date=due_date,
+                    remarks=remarks,
+                    status='ISSUED'
+                )
+                book.available_copies -= 1
+                book.save()
+                issued_count += 1
+                
+        if issued_count > 0:
+            messages.success(request, f"Issued {issued_count} book(s) successfully.")
+        return redirect('attendance:manage_library')
+        
+    # GET request
+    students = StudentProfile.objects.all().order_by('name')
+    teachers = TeacherProfile.objects.all().order_by('name')
+    books = Book.objects.filter(available_copies__gt=0).order_by('title')
+    
+    return render(request, 'attendance/issue_book.html', {
+        'students': students,
+        'teachers': teachers,
+        'books': books,
+        'default_due': (timezone.now().date() + timedelta(days=14)).strftime('%Y-%m-%d'),
+    })
 
 
 @login_required
 @transaction.atomic
-def process_book_return(request, record_id):
-    if request.user.role != User.IS_LIBRARIAN:
-        return HttpResponse("Unauthorized", status=403)
+def return_book(request, record_id):
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return HttpResponseForbidden("Access Blocked.")
         
     record = get_object_or_404(LibraryRecord, id=record_id)
-    if not record.is_returned:
-        record.is_returned = True
-        record.date_returned = timezone.now().date()
+    if record.status == 'ISSUED':
+        record.status = 'RETURNED'
+        record.return_date = timezone.now().date()
         record.save()
-        messages.success(request, f"Book '{record.book_title}' marked returned successfully.")
-    else:
-        messages.warning(request, "This library record is already checked in.")
         
-    return redirect('attendance:library_dashboard')
+        if record.book:
+            record.book.available_copies = min(
+                record.book.available_copies + 1, 
+                record.book.total_copies
+            )
+            record.book.save()
+            
+        messages.success(request, f"Returned: '{record.book.title if record.book else 'Unknown'}' successfully.")
+    else:
+        messages.info(request, "This resource record is already marked as returned.")
+        
+    return redirect('attendance:manage_library')
+
+
+@login_required
+@transaction.atomic
+def add_book(request):
+    """
+    Endpoint for the librarian to upload/add books to the system library catalog.
+    """
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return HttpResponseForbidden("Access Blocked.")
+        
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        author = request.POST.get('author', '').strip()
+        isbn = request.POST.get('isbn', '').strip()
+        total_copies_str = request.POST.get('total_copies', '1')
+        
+        if not title:
+            messages.error(request, "Book title is required.")
+            return redirect('attendance:manage_library')
+            
+        try:
+            total_copies = int(total_copies_str)
+            if total_copies < 1:
+                total_copies = 1
+        except ValueError:
+            total_copies = 1
+            
+        # Check if book exists (match by unique isbn if available, else exact title)
+        book = None
+        if isbn:
+            book = Book.objects.filter(isbn=isbn).first()
+        if not book:
+            book = Book.objects.filter(title__iexact=title).first()
+            
+        if book:
+            book.total_copies += total_copies
+            book.available_copies += total_copies
+            if author:
+                book.author = author
+            if isbn:
+                book.isbn = isbn
+            book.save()
+            messages.success(request, f"Updated stock for '{book.title}'. Added {total_copies} more copy/copies.")
+        else:
+            Book.objects.create(
+                title=title,
+                author=author,
+                isbn=isbn if isbn else None,
+                total_copies=total_copies,
+                available_copies=total_copies
+            )
+            messages.success(request, f"Successfully uploaded and cataloged '{title}'.")
+            
+    return redirect('attendance:manage_library')
+
 
 @login_required
 def teacher_dashboard(request):
@@ -575,18 +881,29 @@ def mark_attendance(request, entry_id):
     return render(request, 'attendance/mark_attendance.html', context)
 
     
+import json
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.http import HttpResponse
+from .models import User, AttendanceRecord, RoomAllocation, AcademicTerm, LibraryRecord
+
 @login_required
 def student_dashboard(request):
     """
     Displays personal attendance summary, historical records, analytics charts,
-    and handles attendance card clearance thresholds.
+    hostel allocation, and library borrowing history.
     """
     if request.user.role != User.IS_STUDENT:
         return HttpResponse("Unauthorized", status=403)
         
     student = request.user.student_profile
-    records = AttendanceRecord.objects.filter(student=student).select_related('session__timetable_entry__course_unit')
+    records = AttendanceRecord.objects.filter(student=student).select_related(
+        'session__timetable_entry__course_unit__course__department',
+        'session__timetable_entry__teacher',
+        'session__timetable_entry__stream'
+    )
     
+    # --- Attendance stats ---
     unit_attendance = {}
     total_present = 0
     total_absent = 0
@@ -607,10 +924,21 @@ def student_dashboard(request):
     present_counts = [unit_attendance[u]['present'] for u in unit_names]
     absent_counts = [unit_attendance[u]['absent'] for u in unit_names]
 
-    # --- NEW: Compute overall attendance percentage and threshold clearance ---
     total_sessions = total_present + total_absent
     attendance_percentage = round((total_present / total_sessions) * 100, 1) if total_sessions > 0 else 0.0
     eligible_for_card = attendance_percentage >= 75.0
+
+    # --- Hostel room allocation (current term) ---
+    current_term = AcademicTerm.objects.filter(is_current=True).first()
+    current_room_allocation = None
+    if current_term:
+        try:
+            current_room_allocation = RoomAllocation.objects.get(student=student, term=current_term)
+        except RoomAllocation.DoesNotExist:
+            current_room_allocation = None
+
+    # --- Library borrow history (FIXED: use `issue_date` instead of `date_issued`) ---
+    library_records = LibraryRecord.objects.filter(student=student).order_by('-issue_date')
 
     context = {
         'records': records,
@@ -620,10 +948,14 @@ def student_dashboard(request):
         'present_counts': json.dumps(present_counts),
         'absent_counts': json.dumps(absent_counts),
         'student': student,
-        'attendance_percentage': attendance_percentage,  # Passed to UI
-        'eligible_for_card': eligible_for_card,          # Passed to UI
+        'attendance_percentage': attendance_percentage,
+        'eligible_for_card': eligible_for_card,
+        'current_room_allocation': current_room_allocation,
+        'library_records': library_records,
+        'current_term': current_term,
     }
     return render(request, 'attendance/student_dashboard.html', context)
+
 
 '''
 import io
@@ -1358,6 +1690,12 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from attendance.models import User, AcademicTerm, StaffPaymentRecord
 
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from attendance.models import User, AcademicTerm, StaffPaymentRecord
+
 @login_required
 def staff_payments_dashboard(request):
     user = request.user
@@ -1367,19 +1705,20 @@ def staff_payments_dashboard(request):
         raise PermissionDenied("Students are not permitted to access staff ledger payroll balances.")
 
     # Rule Verification: Admins/Accountants see everything.
-    # Wardens (User.IS_WARDEN) and Teachers see ONLY their own records ordered by month.
+    # Wardens, Teachers see ONLY their own records.
     if user.role in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
         payments = StaffPaymentRecord.objects.all().select_related('staff', 'processed_by', 'term').order_by('-payment_date')
         is_management = True
     else:
-        # Wardens fall here: Restricted strictly to their own rows, sorted by latest month/date
         payments = StaffPaymentRecord.objects.filter(staff=user).select_related('staff', 'processed_by', 'term').order_by('-payment_date')
         is_management = False
-        print(payments)
-        
+
+    # --- NEW: Compute stats for the template ---
+    total_amount = sum(p.amount for p in payments) if payments else 0
+    latest_payment = payments.first() if payments else None
+    payment_methods = list(set(p.payment_method for p in payments)) if payments else []
 
     if request.method == 'POST':
-        # Guard clause: Protects the endpoint from unauthorized form submissions
         if user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
             raise PermissionDenied("Unauthorized transaction entry blocked.")
             
@@ -1413,9 +1752,23 @@ def staff_payments_dashboard(request):
         'payments': payments,
         'is_management': is_management,
         'all_staff': all_staff,
-        'current_term': current_term
+        'current_term': current_term,
+        # NEW STATS
+        'total_amount': total_amount,
+        'latest_payment': latest_payment,
+        'payment_methods': payment_methods,
     }
     return render(request, 'attendance/staff_payments_dashboard.html', context)
+
+@login_required
+def disburse_payment_view(request):
+    """Render the full‑page staff payment disbursement form – only for Accountants/Admins."""
+    if request.user.role not in [User.IS_ACCOUNTANT, User.IS_ADMIN]:
+        raise PermissionDenied("Access Denied: Only Accountants and Admins can disburse payments.")
+    
+    all_staff = User.objects.exclude(role=User.IS_STUDENT).order_by('username')
+    return render(request, 'attendance/disburse_payment.html', {'all_staff': all_staff})
+
 
 @login_required
 @transaction.atomic

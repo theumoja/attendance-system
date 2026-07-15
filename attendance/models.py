@@ -163,19 +163,79 @@ class StudentProfile(models.Model):
         return f"{self.reg_number} - {self.name}"
 
 
-class LibraryRecord(models.Model):
-    student = models.ForeignKey('StudentProfile', on_delete=models.CASCADE, related_name='borrowed_books')
-    book_title = models.CharField(max_length=255)
-    date_issued = models.DateField(default=timezone.now)
-    is_returned = models.BooleanField(default=False)
-    date_returned = models.DateField(null=True, blank=True)
-    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, limit_choices_to={'role': 'LIBRARIAN'})
-    term = models.ForeignKey(AcademicTerm, on_delete=models.SET_NULL, null=True, blank=True)
+# ==================== ENHANCED: INSTITUTIONAL LIBRARY SYSTEM ====================
+
+class Book(models.Model):
+    """
+    Stores individual book titles and tracks inventory stock counts.
+    """
+    title = models.CharField(max_length=255, unique=True, help_text="The official title of the resource book")
+    author = models.CharField(max_length=255, blank=True, null=True, help_text="Author(s) of the book")
+    isbn = models.CharField(max_length=50, blank=True, null=True, unique=True, help_text="International Standard Book Number")
+    total_copies = models.PositiveIntegerField(default=1, help_text="Total copies owned by the school")
+    available_copies = models.PositiveIntegerField(default=1, help_text="Currently available copies on shelves")
 
     def __str__(self):
-        status = "Returned" if self.is_returned else "Active"
-        return f"{self.book_title} -> {self.student.name} ({status})"
+        return f"{self.title} by {self.author or 'Unknown'} ({self.available_copies}/{self.total_copies} available)"
 
+
+class LibraryRecord(models.Model):
+    """
+    Tracks outstanding and resolved issuance records for both Teachers and Students.
+    Borrowing one or more books creates individual rows for simple returns and statuses.
+    """
+    STATUS_CHOICES = [
+        ('ISSUED', 'Issued / Outstanding'),
+        ('RETURNED', 'Returned & Verified'),
+    ]
+
+    # Supports both student and teacher borrowing structures
+    student = models.ForeignKey(
+        'StudentProfile', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name='library_records',
+        help_text="Student borrower (leave blank if borrowing is for a teacher)"
+    )
+    teacher = models.ForeignKey(
+        'TeacherProfile', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name='library_records',
+        help_text="Teacher borrower (leave blank if borrowing is for a student)"
+    )
+    
+    # ForeignKey relation to the Book catalog model
+    book = models.ForeignKey(
+        Book, 
+        on_delete=models.CASCADE, 
+        related_name='records',
+        null=True, # Nullable for smooth migrations on database updates
+        help_text="The book being issued"
+    )
+    
+    issue_date = models.DateField(default=timezone.now)
+    due_date = models.DateField(help_text="The deadline date for returning the resource")
+    return_date = models.DateField(null=True, blank=True, help_text="The exact day the book was returned")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ISSUED')
+    remarks = models.TextField(blank=True, null=True, help_text="Notes such as damage reports, late fees, etc.")
+
+    def clean(self):
+        if not self.student and not self.teacher:
+            raise ValidationError("You must designate either a Student or a Teacher as the borrower.")
+        if self.student and self.teacher:
+            raise ValidationError("A single transaction record cannot link to both a Student and a Teacher simultaneously.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        borrower = self.student.name if self.student else (self.teacher.name if self.teacher else "Unknown")
+        book_title = self.book.title if self.book else "Unknown Book"
+        return f"'{book_title}' borrowed by {borrower} ({self.status})"
 
 # ==================== PER-TERM FEE ACCOUNTING ====================
 

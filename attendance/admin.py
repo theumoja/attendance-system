@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from attendance.models import (
     User, AcademicTerm, Department, Course, Stream, CourseUnit, 
-    TeacherProfile, StudentProfile, LibraryRecord, StudentTermFee, 
+    TeacherProfile, StudentProfile, Book, LibraryRecord, StudentTermFee, 
     FeePaymentTransaction, TimetableBatch, TimetableEntry, 
     AttendanceSession, AttendanceRecord, Hostel, Room, 
     RoomAllocation, DisciplinaryRecord, StaffPaymentRecord
@@ -10,6 +10,7 @@ from attendance.models import (
 
 # ==================== USER MANAGEMENT ====================
 
+@admin.register(User)
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ('System Role Configuration', {'fields': ('role',)}),
@@ -18,58 +19,79 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ('role', 'is_staff', 'is_superuser')
     search_fields = ('username', 'email')
 
-admin.site.register(User, CustomUserAdmin)
-
 
 # ==================== ACADEMIC STRUCTURES ====================
 
+@admin.register(AcademicTerm)
 class AcademicTermAdmin(admin.ModelAdmin):
-    list_display = ('academic_year', 'term', 'start_date', 'end_date', 'is_current')
+    list_display = ('academic_year', 'term', 'start_date', 'end_date', 'is_current', 'total_days', 'remaining_days')
     list_filter = ('is_current', 'academic_year')
     search_fields = ('academic_year', 'term')
 
-admin.site.register(AcademicTerm, AcademicTermAdmin)
-admin.site.register(Department)
-admin.site.register(Course)
-admin.site.register(Stream)
-admin.site.register(CourseUnit)
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'department')
+    list_filter = ('department',)
+    search_fields = ('code', 'name')
+
+
+@admin.register(Stream)
+class StreamAdmin(admin.ModelAdmin):
+    list_display = ('name', 'course')
+    list_filter = ('course',)
+    search_fields = ('name',)
+
+
+@admin.register(CourseUnit)
+class CourseUnitAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'course')
+    list_filter = ('course',)
+    search_fields = ('code', 'name')
 
 
 # ==================== PROFILES & CORE LOGS ====================
 
+@admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
     list_display = ('reg_number', 'name', 'course', 'stream')
     list_filter = ('course', 'stream')
     search_fields = ('reg_number', 'name')
 
+
+@admin.register(TeacherProfile)
 class TeacherProfileAdmin(admin.ModelAdmin):
     list_display = ('name', 'user')
     search_fields = ('name', 'user__username')
 
-admin.site.register(StudentProfile, StudentProfileAdmin)
-admin.site.register(TeacherProfile, TeacherProfileAdmin)
-
 
 # ==================== FINANCES & PAYROLL ====================
 
+@admin.register(StudentTermFee)
 class StudentTermFeeAdmin(admin.ModelAdmin):
     list_display = ('student', 'term', 'total_fees_due', 'total_amount_paid', 'remaining_balance', 'status')
     list_filter = ('term', 'term__academic_year')
     search_fields = ('student__name', 'student__reg_number')
 
+
+@admin.register(FeePaymentTransaction)
 class FeePaymentTransactionAdmin(admin.ModelAdmin):
     list_display = ('reference_number', 'term_fee_account', 'amount', 'payment_method', 'is_confirmed', 'date_recorded')
     list_filter = ('is_confirmed', 'payment_method', 'date_recorded')
     search_fields = ('reference_number', 'term_fee_account__student__name', 'term_fee_account__student__reg_number')
 
+
+@admin.register(StaffPaymentRecord)
 class StaffPaymentRecordAdmin(admin.ModelAdmin):
     list_display = ('reference_number', 'staff', 'amount', 'payment_date', 'payment_method', 'term')
     list_filter = ('payment_method', 'payment_date', 'term')
     search_fields = ('reference_number', 'staff__username', 'description')
-
-admin.site.register(StudentTermFee, StudentTermFeeAdmin)
-admin.site.register(FeePaymentTransaction, FeePaymentTransactionAdmin)
-admin.site.register(StaffPaymentRecord, StaffPaymentRecordAdmin)
 
 
 # ==================== HOUSING / LODGINGS ====================
@@ -78,39 +100,77 @@ class RoomInline(admin.TabularInline):
     model = Room
     extra = 1
 
+
+@admin.register(Hostel)
 class HostelAdmin(admin.ModelAdmin):
     list_display = ('name', 'location')
     inlines = [RoomInline]
 
+
+@admin.register(Room)
+class RoomAdmin(admin.ModelAdmin):
+    list_display = ('name_or_number', 'hostel', 'capacity')
+    list_filter = ('hostel', 'capacity')
+    search_fields = ('name_or_number', 'hostel__name')
+
+
+@admin.register(RoomAllocation)
 class RoomAllocationAdmin(admin.ModelAdmin):
     list_display = ('student', 'room', 'term', 'allocated_by', 'allocated_at')
     list_filter = ('term', 'room__hostel')
     search_fields = ('student__name', 'student__reg_number', 'room__name_or_number')
 
-admin.site.register(Hostel, HostelAdmin)
-admin.site.register(Room)
-admin.site.register(RoomAllocation, RoomAllocationAdmin)
-
 
 # ==================== TIMETABLE & ATTENDANCE ====================
 
-admin.site.register(TimetableBatch)
-admin.site.register(TimetableEntry)
-admin.site.register(AttendanceSession)
-admin.site.register(AttendanceRecord)
+@admin.register(TimetableBatch)
+class TimetableBatchAdmin(admin.ModelAdmin):
+    list_display = ('week_start_date', 'term', 'is_active', 'is_revoked', 'uploaded_at')
+    list_filter = ('is_active', 'is_revoked', 'term', 'week_start_date')
+    search_fields = ('term__academic_year',)
 
 
-# ==================== MISCELLANEOUS SERVICES ====================
+@admin.register(TimetableEntry)
+class TimetableEntryAdmin(admin.ModelAdmin):
+    list_display = ('day', 'start_time', 'end_time', 'course_unit', 'teacher', 'stream', 'batch')
+    list_filter = ('day', 'stream', 'teacher', 'batch')
+    search_fields = ('course_unit__name', 'course_unit__code', 'teacher__name')
 
+
+@admin.register(AttendanceSession)
+class AttendanceSessionAdmin(admin.ModelAdmin):
+    list_display = ('timetable_entry', 'date_marked', 'teacher_latitude', 'teacher_longitude')
+    list_filter = ('date_marked', 'timetable_entry__day')
+    search_fields = ('timetable_entry__course_unit__name', 'timetable_entry__teacher__name')
+
+
+@admin.register(AttendanceRecord)
+class AttendanceRecordAdmin(admin.ModelAdmin):
+    list_display = ('student', 'session', 'status')
+    list_filter = ('status', 'session__date_marked')
+    search_fields = ('student__name', 'student__reg_number')
+
+
+# ==================== INSTITUTIONAL LIBRARY SYSTEM ====================
+
+@admin.register(Book)
+class BookAdmin(admin.ModelAdmin):
+    list_display = ('title', 'author', 'isbn', 'total_copies', 'available_copies')
+    search_fields = ('title', 'author', 'isbn')
+
+
+@admin.register(LibraryRecord)
 class LibraryRecordAdmin(admin.ModelAdmin):
-    list_display = ('book_title', 'student', 'date_issued', 'is_returned', 'date_returned', 'term')
-    list_filter = ('is_returned', 'date_issued', 'term')
-    search_fields = ('book_title', 'student__name', 'student__reg_number')
+    # Fixed to reference database fields exactly as they exist on models.py
+    list_display = ('book', 'student', 'teacher', 'issue_date', 'due_date', 'return_date', 'status')
+    list_filter = ('status', 'issue_date', 'due_date', 'return_date')
+    search_fields = ('book__title', 'student__name', 'student__reg_number', 'teacher__name')
 
+
+# ==================== DISCIPLINARY MANAGEMENT ====================
+
+@admin.register(DisciplinaryRecord)
 class DisciplinaryRecordAdmin(admin.ModelAdmin):
     list_display = ('subject', 'student', 'severity', 'date_logged', 'reported_by', 'term')
     list_filter = ('severity', 'date_logged', 'term')
     search_fields = ('subject', 'student__name', 'student__reg_number', 'details')
-
-admin.site.register(LibraryRecord, LibraryRecordAdmin)
-admin.site.register(DisciplinaryRecord, DisciplinaryRecordAdmin)

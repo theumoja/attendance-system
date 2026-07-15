@@ -97,14 +97,17 @@ urlpatterns = [
 
     # 3. Lodging Allocation Execution Endpoint (Strictly processed by Wardens)
     path('lodgings/allocate/', views_users.allocate_or_reallocate, name='allocate_or_reallocate'),
+    path('staff-payments/disburse/', views_users.disburse_payment_view, name='disburse_payment'),
 
+    # In attendance/urls.py inside urlpatterns:
+    path('library/dashboard/', views_users.librarian_dashboard, name='librarian_dashboard'),
+    path('library/manage/', views_users.manage_library, name='manage_library'),
+    path('library/issue/', views_users.issue_book, name='issue_book'),
+    path('library/return/<int:record_id>/', views_users.return_book, name='return_book'),
+    path('library/books/add/', views_users.add_book, name='add_book'),
 
-
-    path('library/', views_users.library_dashboard, name='library_dashboard'),
-    path('library/issue/', views_users.process_book_issue, name='process_book_issue'),
-    path('library/return/<int:record_id>/', views_users.process_book_return, name='process_book_return'),
-
-
+    path('library/reader/', views_users.library_reader_dashboard, name='library_reader_dashboard'),
+    
     path('finance/', views_users.fees_dashboard, name='fees_dashboard'),
     path('staff_payments_dashboard/', views_users.staff_payments_dashboard, name='staff_payments_dashboard'),
     path('finance/record/', views_users.record_payment_attempt, name='record_payment_attempt'),

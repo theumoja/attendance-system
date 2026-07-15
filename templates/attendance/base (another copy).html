@@ -338,7 +338,7 @@
 
                 {% if user.role != 'ACCOUNTANT' %}
                     <div class="drawer-heading">Campus Operations</div>
-                    <a href="{% url 'attendance:library_dashboard' %}"><i class="fas fa-book-reader"></i> Library Management</a>
+                    <a href="{% url 'attendance:manage_library' %}"><i class="fas fa-book-reader"></i> Library Management</a>
                     <a href="{% url 'attendance:disciplinary_dashboard' %}"><i class="fas fa-gavel"></i> Disciplinary Board</a>
                     <a href="{% url 'attendance:view_lodgings' %}"><i class="fas fa-bed"></i> Lodgings & Hostels</a>
                 {% endif %}
@@ -425,7 +425,7 @@
                     <div class="sidebar-heading">Campus Operations</div>
                     {% if request.user.role == 'LIBRARIAN' or request.user.role == 'ADMIN' %}
                     <li class="nav-item">
-                        <a href="{% url 'attendance:library_dashboard' %}" class="nav-link">
+                        <a href="{% url 'attendance:manage_library' %}" class="nav-link">
                             <i class="fas fa-book-reader"></i>
                             <span>Library Management</span>
                         </a>
