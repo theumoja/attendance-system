@@ -384,6 +384,9 @@ class DisciplinaryRecord(models.Model):
         ('MILD', 'Mild Case'),
         ('SEVERE', 'Severe Breach'),
         ('VERY_SEVERE', 'Very Severe / Critical'),
+        ('SUSPENDED_2W', 'Suspended (2 weeks)'),          # new
+        ('INDEF_SUSPENDED', 'Indefinitely Suspended'),     # new
+        ('EXPELLED', 'Expelled'),                          # new
     ]
 
     student = models.ForeignKey('StudentProfile', on_delete=models.CASCADE, related_name='disciplinary_logs')
