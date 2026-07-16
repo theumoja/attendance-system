@@ -226,28 +226,30 @@ def warden_dashboard(request):
 
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.db import transaction
-from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponseForbidden
-
-# ---------- ENHANCED LIBRARY CONTROLLER INTERFACES ----------
+from django.db import models
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from .models import Book, LibraryRecord, StudentProfile, TeacherProfile, User
 
 @login_required
 def librarian_dashboard(request):
     if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
         return render(request, 'errors/403.html', status=403)
     
-    total_titles = Book.objects.count()
-    # sum of all book copies in stock
-    total_stock = Book.objects.aggregate(models.Sum('total_copies'))['total_copies__sum'] or 0
-    active_issues = LibraryRecord.objects.filter(status='ISSUED').count()
-    returned = LibraryRecord.objects.filter(status='RETURNED').count()
+    # ---------- Statistics ----------
+    total_books = Book.objects.count()
+    active_loans = LibraryRecord.objects.filter(status='ISSUED').count()
+    returned_books = LibraryRecord.objects.filter(status='RETURNED').count()
     
-    # Generate charts trends for the past 6 months
     today = timezone.now().date()
-    monthly_data = []
+    overdue_count = LibraryRecord.objects.filter(
+        status='ISSUED',
+        due_date__lt=today
+    ).count()
+    
+    # ---------- Monthly trend (last 6 months) ----------
     monthly_labels = []
+    monthly_data = []
     for i in range(5, -1, -1):
         date_cursor = today - timedelta(days=30 * i)
         month_name = date_cursor.strftime('%b')
@@ -259,20 +261,56 @@ def librarian_dashboard(request):
         ).count()
         monthly_labels.append(month_name)
         monthly_data.append(count)
-
+    
+    # ---------- Most borrowed books (top 5) ----------
+    top_books = (
+        LibraryRecord.objects
+        .values('book__title')
+        .annotate(total=models.Count('id'))
+        .order_by('-total')[:5]
+    )
+    top_books_list = [
+        {'book_title': item['book__title'], 'total': item['total']}
+        for item in top_books
+    ]
+    
+    # ---------- Recent activity (last 10) ----------
+    recent_records = LibraryRecord.objects.select_related('book', 'student', 'teacher').order_by('-issue_date')[:10]
+    activity_feed = []
+    for rec in recent_records:
+        borrower = rec.student.name if rec.student else (rec.teacher.name if rec.teacher else "Unknown")
+        action = "Returned" if rec.status == 'RETURNED' else "Borrowed"
+        activity_feed.append({
+            'book': rec.book.title if rec.book else "Unknown Book",
+            'student': borrower,
+            'action': action,
+            'date': rec.issue_date.strftime('%b %d, %Y'),
+            'is_returned': rec.status == 'RETURNED'
+        })
+    
+    # ---------- Overdue books with days calculated ----------
+    overdue_records = LibraryRecord.objects.filter(
+        status='ISSUED',
+        due_date__lt=today
+    ).select_related('book', 'student', 'teacher')
+    
+    # Attach overdue_days to each record
+    for record in overdue_records:
+        record.overdue_days = (today - record.due_date).days
+    
     context = {
-        'total_records': LibraryRecord.objects.count(), # keeps support for original templates
-        'active_issues': active_issues,
-        'returned': returned,
-        'total_titles': total_titles,
-        'total_stock': total_stock,
+        'total_books': total_books,
+        'active_loans': active_loans,
+        'returned_books': returned_books,
+        'overdue_count': overdue_count,
         'monthly_labels': monthly_labels,
         'monthly_data': monthly_data,
+        'top_books': top_books_list,
+        'activity_feed': activity_feed,
+        'overdue_records': overdue_records,
+        'today': today,  # <-- now available in template
     }
     return render(request, 'attendance/librarian_dashboard.html', context)
-
-
-
 
 @login_required
 @transaction.atomic

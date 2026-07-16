@@ -46,7 +46,7 @@
         color: #10b981;
     }
 
-    /* ----- Toolbar ----- */
+    /* ----- Toolbar with filters ----- */
     .toolbar {
         display: flex;
         justify-content: space-between;
@@ -54,6 +54,32 @@
         flex-wrap: wrap;
         gap: 1rem;
         margin-bottom: 1.5rem;
+    }
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .filter-group label {
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #475569;
+        margin-right: 0.2rem;
+    }
+    .filter-group .form-control-sm {
+        padding: 0.4rem 0.8rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        background: #fafbfc;
+        transition: border-color 0.2s;
+        min-width: 120px;
+    }
+    .filter-group .form-control-sm:focus {
+        border-color: #2c6e6b;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(44, 110, 107, 0.1);
     }
     .search-bar {
         padding: 0.6rem 1.2rem 0.6rem 2.5rem;
@@ -151,6 +177,15 @@
         border-bottom: none;
     }
 
+    /* Overdue row styling */
+    .table tbody tr.overdue-row {
+        background-color: #fef2f2;
+        border-left: 4px solid #ef4444;
+    }
+    .table tbody tr.overdue-row:hover {
+        background-color: #fee2e2;
+    }
+
     /* ----- Badges ----- */
     .badge {
         display: inline-block;
@@ -180,6 +215,11 @@
     .badge-info {
         background: #e0f2fe;
         color: #0369a1;
+    }
+    .badge-overdue {
+        background: #fee2e2;
+        color: #b91c1c;
+        font-weight: 700;
     }
 
     /* ----- Buttons ----- */
@@ -479,7 +519,6 @@
         margin: 0;
     }
 
-    /* Two‑column form layout for larger screens */
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -501,7 +540,6 @@
         margin-top: 0.5rem;
     }
 
-    /* ----- Quick issue book card ----- */
     .quick-issue-card {
         background: linear-gradient(145deg, #ffffff, #fafbfc);
     }
@@ -509,7 +547,6 @@
         color: #10b981;
     }
 
-    /* ----- Add book card ----- */
     .add-book-card {
         background: #ffffff;
         border-left: 4px solid #10b981;
@@ -518,7 +555,6 @@
         color: #10b981;
     }
 
-    /* ----- Empty state ----- */
     .empty-state {
         text-align: center;
         padding: 2.5rem 1rem;
@@ -535,7 +571,6 @@
         font-size: 0.95rem;
     }
 
-    /* ----- Responsive tweaks ----- */
     @media (max-width: 768px) {
         .card {
             padding: 1.25rem;
@@ -546,6 +581,12 @@
         }
         .search-bar {
             max-width: 100%;
+        }
+        .filter-group {
+            flex-wrap: wrap;
+        }
+        .filter-group .form-control-sm {
+            min-width: 100px;
         }
         .tab-btn {
             font-size: 0.8rem;
@@ -589,8 +630,36 @@
                     <h2 class="card-title" style="margin-bottom:0;">
                         <i class="fas fa-history"></i> Outstanding Issues
                     </h2>
+                    <!-- Search -->
                     <input type="text" id="libSearch" class="search-bar" placeholder="Search logs by borrower or book...">
                 </div>
+                <!-- ========== NEW FILTER BAR ========== -->
+                <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
+                    <div class="filter-group">
+                        <label for="statusFilter"><i class="fas fa-filter"></i> Status</label>
+                        <select id="statusFilter" class="form-control-sm">
+                            <option value="all">All</option>
+                            <option value="issued">Issued</option>
+                            <option value="returned">Returned</option>
+                            <option value="overdue">Overdue</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateFrom"><i class="fas fa-calendar-alt"></i> From</label>
+                        <input type="date" id="dateFrom" class="form-control-sm">
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateTo">To</label>
+                        <input type="date" id="dateTo" class="form-control-sm">
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="clearFiltersBtn" style="background:#e2e8f0; color:#475569;">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
+                        Showing <strong id="visibleCount">0</strong> of <strong id="totalCount">0</strong> records
+                    </span>
+                </div>
+
                 <div class="table-responsive">
                     <table class="table" id="libTable">
                         <thead>
@@ -603,9 +672,14 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="libTableBody">
                             {% for record in records %}
-                            <tr>
+                            <tr 
+                                data-issue-date="{{ record.issue_date|date:'Y-m-d' }}"
+                                data-due-date="{{ record.due_date|date:'Y-m-d' }}"
+                                data-status="{{ record.status }}"
+                                data-borrower="{{ record.student.name|lower }}{% if record.teacher %}{{ record.teacher.name|lower }}{% endif %}"
+                            >
                                 <td>{{ record.issue_date|date:"M d, Y" }}</td>
                                 <td>
                                     {% if record.student %}
@@ -614,7 +688,6 @@
                                     {% elif record.teacher %}
                                         <span class="badge badge-info">Teacher</span> 
                                         <strong>{{ record.teacher.name }}</strong>
-                                        <!-- Removed staff_id reference – it doesn't exist -->
                                     {% endif %}
                                 </td>
                                 <td>{{ record.book.title }}</td>
@@ -637,7 +710,7 @@
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr>
+                            <tr id="emptyStateRow">
                                 <td colspan="6">
                                     <div class="empty-state">
                                         <i class="fas fa-folder-open"></i>
@@ -646,6 +719,13 @@
                                 </td>
                             </tr>
                             {% endfor %}
+                            <!-- hidden no-match row -->
+                            <tr id="noMatchRow" style="display:none;">
+                                <td colspan="6" style="text-align:center; padding:2rem; color:#94a3b8;">
+                                    <i class="fas fa-search" style="display:block; font-size:2rem; margin-bottom:0.5rem;"></i>
+                                    No transactions match your filters.
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -706,7 +786,7 @@
 
     <!-- ========== RIGHT COLUMN ========== -->
     <div>
-        <!-- Quick Issue Book (ENHANCED with search, quantity, multiple books) -->
+        <!-- Quick Issue Book -->
         <div class="card quick-issue-card">
             <h3 class="card-title"><i class="fas fa-plus"></i> Quick Issue Book</h3>
             <form action="{% url 'attendance:manage_library' %}" method="POST" id="quickIssueForm">
@@ -732,7 +812,6 @@
 
                 <div class="form-group" id="teacher-select-group" style="display:none;">
                     <label for="teacher_id"><i class="fas fa-chalkboard-teacher"></i> Search Teacher (Name)</label>
-                    <!-- FIXED: value uses teacher.name only – no staff_id needed -->
                     <input type="text" name="teacher_id" id="teacher_id" class="form-control" list="teacher_list" placeholder="Start typing teacher's name...">
                     <datalist id="teacher_list">
                         {% for teacher in teachers %}
@@ -875,6 +954,7 @@
 
         // ----- State -----
         let selected = []; // array of {id, title, author, qty, available, total}
+        let currentResults = [];
 
         // ----- Render selected list -----
         function renderSelected() {
@@ -900,7 +980,6 @@
             html += `</tbody></table>`;
             selectedContainer.innerHTML = html;
 
-            // Attach remove handlers
             selectedContainer.querySelectorAll('.remove-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.index);
@@ -913,7 +992,6 @@
             updateHiddenFields();
         }
 
-        // ----- Update hidden fields for form submission -----
         function updateHiddenFields() {
             hiddenContainer.innerHTML = '';
             selected.forEach((item) => {
@@ -930,9 +1008,6 @@
                 hiddenContainer.appendChild(qtyInputField);
             });
         }
-
-        // ----- Search logic -----
-        let currentResults = [];
 
         function performSearch(query) {
             query = query.toLowerCase().trim();
@@ -983,7 +1058,6 @@
             });
         }
 
-        // ----- Add book to selection -----
         function addBook(book) {
             const qty = parseInt(qtyInput.value) || 1;
             if (qty < 1) {
@@ -1021,7 +1095,6 @@
             addBtn.disabled = true;
         }
 
-        // ----- Add button click -----
         addBtn.addEventListener('click', function() {
             if (currentResults.length > 0) {
                 const book = currentResults[0];
@@ -1031,7 +1104,6 @@
             }
         });
 
-        // ----- Search input events -----
         searchInput.addEventListener('input', function() {
             performSearch(this.value);
         });
@@ -1048,8 +1120,6 @@
                 performSearch(this.value);
             }
         });
-
-        // Enter key on search adds first result
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -1059,12 +1129,10 @@
             }
         });
 
-        // Quantity validation
         qtyInput.addEventListener('change', function() {
             if (this.value < 1) this.value = 1;
         });
 
-        // ----- Form submission validation -----
         form.addEventListener('submit', function(e) {
             if (selected.length === 0) {
                 e.preventDefault();
@@ -1080,10 +1148,8 @@
             }
         });
 
-        // Initial render
         renderSelected();
 
-        // Close results on outside click
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.book-selector') && !e.target.closest('.book-results')) {
                 resultsDiv.style.display = 'none';
@@ -1091,7 +1157,7 @@
             }
         });
 
-        // ----- Tab switching (existing) -----
+        // ----- Tab switching -----
         window.switchTab = function(tabId) {
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -1099,18 +1165,161 @@
             event.currentTarget.classList.add('active');
         };
 
-        // ----- Search filters (existing) -----
-        document.getElementById('libSearch').addEventListener('keyup', function() {
-            const query = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#libTable tbody tr');
+        // ==========================================
+        //  TRANSACTIONS FILTER LOGIC (Frontend JS)
+        // ==========================================
+        const tableBody = document.getElementById('libTableBody');
+        const statusFilter = document.getElementById('statusFilter');
+        const dateFrom = document.getElementById('dateFrom');
+        const dateTo = document.getElementById('dateTo');
+        const searchInputLib = document.getElementById('libSearch');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const visibleCount = document.getElementById('visibleCount');
+        const totalCount = document.getElementById('totalCount');
+        const emptyStateRow = document.getElementById('emptyStateRow');
+        const noMatchRow = document.getElementById('noMatchRow');
+
+        // Helper: get all data rows (exclude empty/no-match rows)
+        function getDataRows() {
+            return Array.from(tableBody.querySelectorAll('tr'))
+                .filter(row => row.id !== 'emptyStateRow' && row.id !== 'noMatchRow');
+        }
+
+        // Mark overdue rows and compute status
+        function markOverdueRows() {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const rows = getDataRows();
             rows.forEach(row => {
-                if (row.cells.length > 1) {
-                    const text = row.textContent.toLowerCase();
-                    row.style.display = text.includes(query) ? '' : 'none';
+                const dueDateStr = row.dataset.dueDate;
+                if (dueDateStr) {
+                    const due = new Date(dueDateStr + 'T00:00:00');
+                    const status = row.dataset.status;
+                    if (status === 'ISSUED' && due < today) {
+                        row.classList.add('overdue-row');
+                        // change status badge to overdue
+                        const statusCell = row.querySelector('td:nth-child(5)');
+                        if (statusCell) {
+                            const badge = statusCell.querySelector('.badge');
+                            if (badge) {
+                                badge.className = 'badge badge-overdue';
+                                badge.textContent = 'Overdue';
+                            }
+                        }
+                    } else {
+                        row.classList.remove('overdue-row');
+                    }
                 }
             });
+        }
+
+        // Apply all filters
+        function applyFilters() {
+            const searchVal = searchInputLib.value.toLowerCase().trim();
+            const statusVal = statusFilter.value;
+            const fromVal = dateFrom.value;
+            const toVal = dateTo.value;
+
+            const rows = getDataRows();
+            let visible = 0;
+            const total = rows.length;
+
+            rows.forEach(row => {
+                let show = true;
+
+                // Search (by any text in row)
+                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) {
+                    show = false;
+                }
+
+                // Status filter
+                if (show && statusVal !== 'all') {
+                    let rowStatus = row.dataset.status;
+                    if (statusVal === 'overdue') {
+                        // check if row has overdue class
+                        if (!row.classList.contains('overdue-row')) {
+                            show = false;
+                        }
+                    } else {
+                        const statusMap = {
+                            'issued': 'ISSUED',
+                            'returned': 'RETURNED'
+                        };
+                        if (rowStatus !== statusMap[statusVal]) {
+                            show = false;
+                        }
+                    }
+                }
+
+                // Date range (issue date)
+                if (show && (fromVal || toVal)) {
+                    const issueDate = row.dataset.issueDate;
+                    if (issueDate) {
+                        const issue = new Date(issueDate + 'T00:00:00');
+                        if (fromVal) {
+                            const from = new Date(fromVal + 'T00:00:00');
+                            if (issue < from) show = false;
+                        }
+                        if (show && toVal) {
+                            const to = new Date(toVal + 'T00:00:00');
+                            if (issue > to) show = false;
+                        }
+                    }
+                }
+
+                if (show) {
+                    row.style.display = '';
+                    visible++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update counts
+            totalCount.textContent = total;
+            visibleCount.textContent = visible;
+
+            // Show/hide empty states
+            if (emptyStateRow) {
+                emptyStateRow.style.display = (total === 0) ? '' : 'none';
+            }
+            if (noMatchRow) {
+                noMatchRow.style.display = (total > 0 && visible === 0) ? '' : 'none';
+            }
+        }
+
+        // ----- Event listeners for filters -----
+        statusFilter.addEventListener('change', applyFilters);
+        dateFrom.addEventListener('change', applyFilters);
+        dateTo.addEventListener('change', applyFilters);
+        searchInputLib.addEventListener('input', applyFilters);
+
+        // Clear all filters
+        clearFiltersBtn.addEventListener('click', function() {
+            statusFilter.value = 'all';
+            dateFrom.value = '';
+            dateTo.value = '';
+            searchInputLib.value = '';
+            applyFilters();
         });
 
+        // ----- Initialisation -----
+        // First, mark overdue rows
+        markOverdueRows();
+        // Then apply filters (sets counts)
+        applyFilters();
+
+        // Re-run overdue marking after any DOM update (e.g., after return)
+        // We'll also observe for changes (optional)
+        if (window.MutationObserver) {
+            const observer = new MutationObserver(function() {
+                markOverdueRows();
+                applyFilters();
+            });
+            observer.observe(tableBody, { childList: true, subtree: true });
+        }
+
+        // ----- Catalog search (existing) -----
         document.getElementById('catalogSearch').addEventListener('keyup', function() {
             const query = this.value.toLowerCase();
             const rows = document.querySelectorAll('#catalogTable tbody tr');
@@ -1121,6 +1330,9 @@
                 }
             });
         });
+
+        // ----- Also reapply filters when catalog search is used (no conflict) -----
+
     });
 </script>
 {% endblock %}
