@@ -271,12 +271,8 @@ def librarian_dashboard(request):
     }
     return render(request, 'attendance/librarian_dashboard.html', context)
 
-from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
-from django.db import transaction
-from django.utils import timezone
-from datetime import timedelta
-from .models import User, StudentProfile, TeacherProfile, Book, LibraryRecord
+
+
 
 @login_required
 @transaction.atomic
@@ -368,6 +364,78 @@ def manage_library(request):
         'students': students,
         'teachers': teachers,
     })
+
+
+
+
+@login_required
+@transaction.atomic
+def upload_books(request):
+    """
+    Standalone page for librarians to add new books to the catalog.
+    GET  -> display the upload form.
+    POST -> process new book entry.
+    """
+    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
+        return render(request, 'errors/403.html', status=403)
+
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        author = request.POST.get('author', '').strip()
+        isbn = request.POST.get('isbn', '').strip()
+        total_copies_str = request.POST.get('total_copies', '1')
+
+        if not title:
+            messages.error(request, "Book title is required.")
+            return redirect('attendance:upload_books')
+
+        try:
+            total_copies = int(total_copies_str)
+            if total_copies < 1:
+                total_copies = 1
+        except ValueError:
+            total_copies = 1
+
+        # Check for existing book by ISBN (if provided) or exact title
+        book = None
+        if isbn:
+            book = Book.objects.filter(isbn=isbn).first()
+        if not book:
+            book = Book.objects.filter(title__iexact=title).first()
+
+        if book:
+            # Update existing record
+            book.total_copies += total_copies
+            book.available_copies += total_copies
+            if author:
+                book.author = author
+            if isbn:
+                book.isbn = isbn
+            book.save()
+            messages.success(
+                request, 
+                f"Updated stock for '{book.title}'. Added {total_copies} more copy/copies."
+            )
+        else:
+            # Create new book
+            Book.objects.create(
+                title=title,
+                author=author,
+                isbn=isbn if isbn else None,
+                total_copies=total_copies,
+                available_copies=total_copies
+            )
+            messages.success(request, f"Successfully cataloged '{title}'.")
+
+        return redirect('attendance:upload_books')
+
+    # GET – render the standalone form
+    return render(request, 'attendance/upload_books.html')
+
+
+
+
+
 
 @login_required
 def library_reader_dashboard(request):

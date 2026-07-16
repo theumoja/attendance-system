@@ -356,6 +356,12 @@
                     <a href="{% url 'attendance:analytics_dashboard' %}"><i class="fas fa-chart-line"></i> Reports & Analytics</a>
                     <div class="drawer-heading">Scheduling</div>
                     <a href="{% url 'attendance:manage_timetable' %}"><i class="fas fa-calendar-alt"></i> Timetable</a>
+                    <!-- NEW: Library heading for Admin -->
+                    <div class="drawer-heading">Library</div>
+                    <a href="{% url 'attendance:librarian_dashboard' %}"><i class="fas fa-chart-pie"></i> Librarian Dashboard</a>
+                    <a href="{% url 'attendance:manage_library' %}"><i class="fas fa-book-reader"></i> Library Management</a>
+                    <a href="{% url 'attendance:issue_book' %}"><i class="fas fa-plus-circle"></i> Issue Book</a>
+                    <a href="{% url 'attendance:upload_books' %}"><i class="fas fa-upload"></i> Upload Books</a>
                 {% endif %}
 
                 {# --- TEACHER --- #}
@@ -364,7 +370,6 @@
                     <a href="{% url 'attendance:teacher_dashboard' %}" class="{% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i> Dashboard
                     </a>
-                    <!-- NEW: My Library -->
                     <a href="{% url 'attendance:library_reader_dashboard' %}" class="{% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
                         <i class="fas fa-book"></i> My Library
                     </a>
@@ -376,7 +381,6 @@
                     <a href="{% url 'attendance:student_dashboard' %}" class="{% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
                         <i class="fas fa-user-graduate"></i> Dashboard
                     </a>
-                    <!-- REPLACED: old 'Library' link (to manage_library) with 'My Library' -->
                     <a href="{% url 'attendance:library_reader_dashboard' %}" class="{% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
                         <i class="fas fa-book"></i> My Library
                     </a>
@@ -401,6 +405,10 @@
                     </a>
                     <a href="{% url 'attendance:issue_book' %}" class="{% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
                         <i class="fas fa-plus-circle"></i> Issue Book
+                    </a>
+                    <!-- NEW: Upload Books link for Librarian -->
+                    <a href="{% url 'attendance:upload_books' %}" class="{% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
+                        <i class="fas fa-upload"></i> Upload Books
                     </a>
                 {% endif %}
 
@@ -493,6 +501,21 @@
                 <a href="{% url 'attendance:manage_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_timetable' %}active{% endif %}">
                     <i class="fas fa-calendar-alt"></i> Timetable
                 </a>
+                <!-- NEW: Library heading for Admin -->
+                <span class="sidebar-divider"></span>
+                <div class="sidebar-heading">Library</div>
+                <a href="{% url 'attendance:librarian_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'librarian_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Librarian Dashboard
+                </a>
+                <a href="{% url 'attendance:manage_library' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_library' %}active{% endif %}">
+                    <i class="fas fa-book-reader"></i> Library Management
+                </a>
+                <a href="{% url 'attendance:issue_book' %}" class="sidebar-link {% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
+                    <i class="fas fa-plus-circle"></i> Issue Book
+                </a>
+                <a href="{% url 'attendance:upload_books' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
+                    <i class="fas fa-upload"></i> Upload Books
+                </a>
             {% endif %}
 
             {# --- TEACHER --- #}
@@ -501,7 +524,6 @@
                 <a href="{% url 'attendance:teacher_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
                     <i class="fas fa-chalkboard-teacher"></i> Dashboard
                 </a>
-                <!-- NEW: My Library -->
                 <a href="{% url 'attendance:library_reader_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
                     <i class="fas fa-book"></i> My Library
                 </a>
@@ -513,7 +535,6 @@
                 <a href="{% url 'attendance:student_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
                     <i class="fas fa-user-graduate"></i> Dashboard
                 </a>
-                <!-- REPLACED: old 'Library' link (to manage_library) with 'My Library' -->
                 <a href="{% url 'attendance:library_reader_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
                     <i class="fas fa-book"></i> My Library
                 </a>
@@ -538,6 +559,10 @@
                 </a>
                 <a href="{% url 'attendance:issue_book' %}" class="sidebar-link {% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
                     <i class="fas fa-plus-circle"></i> Issue Book
+                </a>
+                <!-- NEW: Upload Books link for Librarian -->
+                <a href="{% url 'attendance:upload_books' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
+                    <i class="fas fa-upload"></i> Upload Books
                 </a>
             {% endif %}
 

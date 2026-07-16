@@ -213,7 +213,6 @@
         transform: translateY(-1px);
         box-shadow: var(--shadow);
     }
-    /* ----- NEW: Add Book button style ----- */
     .quick-actions .btn-info {
         background: #0ea5e9;
         color: #fff;
@@ -424,13 +423,13 @@
             <a href="{% url 'attendance:manage_library' %}" class="btn btn-warning">
                 <i class="fas fa-undo"></i> Return Book
             </a>
-            <!-- NEW: Add Book button links to the upload section on manage_library -->
-            <a href="{% url 'attendance:manage_library' %}#add-book-section" class="btn btn-info">
+            <!-- UPDATED: Direct link to the dedicated upload page -->
+            <a href="{% url 'attendance:upload_books' %}" class="btn btn-info">
                 <i class="fas fa-plus-circle"></i> Add Book
             </a>
         </div>
         <div class="info-note">
-            <i class="fas fa-info-circle"></i> Use the <strong>green "Issue Book"</strong> button to open the dedicated issue form, or <strong>"Add Book"</strong> to expand your catalog.
+            <i class="fas fa-info-circle"></i> Use the <strong>green "Issue Book"</strong> button to open the dedicated issue form, or <strong>"Add Book"</strong> to expand your catalog via the dedicated upload page.
         </div>
     </div>
 </div>

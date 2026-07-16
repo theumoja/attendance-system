@@ -98,7 +98,9 @@ urlpatterns = [
     # 3. Lodging Allocation Execution Endpoint (Strictly processed by Wardens)
     path('lodgings/allocate/', views_users.allocate_or_reallocate, name='allocate_or_reallocate'),
     path('staff-payments/disburse/', views_users.disburse_payment_view, name='disburse_payment'),
+    path('library/upload-books/', views_users.upload_books, name='upload_books'),
 
+    
     # In attendance/urls.py inside urlpatterns:
     path('library/dashboard/', views_users.librarian_dashboard, name='librarian_dashboard'),
     path('library/manage/', views_users.manage_library, name='manage_library'),
