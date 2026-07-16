@@ -398,7 +398,7 @@
             <input type="text" name="teacher_id" id="teacher_id" class="form-control" list="teacher_list" placeholder="Type staff name or ID...">
             <datalist id="teacher_list">
                 {% for teacher in teachers %}
-                    <option value="{{ teacher.staff_id }}">{{ teacher.name }} ({{ teacher.staff_id }})</option>
+                    <option value="{{ teacher.name }}">{{ teacher.name }} ({{ teacher.user.username }})</option>
                 {% endfor %}
             </datalist>
         </div>

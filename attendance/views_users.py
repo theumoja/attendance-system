@@ -405,12 +405,6 @@ def library_reader_dashboard(request):
 
 
 
-from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
-from django.db import transaction
-from django.utils import timezone
-from datetime import datetime, timedelta
-from .models import User, StudentProfile, TeacherProfile, Book, LibraryRecord
 
 @login_required
 @transaction.atomic
@@ -446,6 +440,7 @@ def issue_book(request):
                 return redirect('attendance:issue_book')
             # LOOKUP BY NAME (front-end sends the teacher's name)
             teacher_obj = get_object_or_404(TeacherProfile, name=teacher_id)
+            #teacher_obj = get_object_or_404(TeacherProfile, staff_id=teacher_id)
             
         if not book_ids:
             messages.error(request, "You must select one or more books.")
