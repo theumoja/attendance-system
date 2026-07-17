@@ -50,10 +50,9 @@
         .sev-MILD { background-color: #fef3c7; color: #d97706; }
         .sev-SEVERE { background-color: #ffedd5; color: #ea580c; }
         .sev-VERY_SEVERE { background-color: #fee2e2; color: #b91c1c; }
-        /* New severity badges */
-        .sev-SUSPENDED_2W { background-color: #fde68a; color: #b45309; }          /* amber-400 */
-        .sev-INDEF_SUSPENDED { background-color: #fdba74; color: #9a3412; }       /* orange-300 */
-        .sev-EXPELLED { background-color: #fca5a5; color: #7f1d1d; }              /* red-300 */
+        .sev-SUSPENDED_2W { background-color: #fde68a; color: #b45309; }
+        .sev-INDEF_SUSPENDED { background-color: #fdba74; color: #9a3412; }
+        .sev-EXPELLED { background-color: #fca5a5; color: #7f1d1d; }
 
         /* ── Filter bar styles ── */
         .filter-bar {
@@ -128,9 +127,46 @@
         .data-table tbody tr.row-hidden { display: none; }
         .data-table tbody tr.row-visible { display: table-row; }
 
-        /* ========================================
-               🎨  PROFESSIONAL FORM STYLES
-               ======================================== */
+        /* ── Action buttons ── */
+        .action-group {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.3rem 0.8rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { transform: translateY(-1px); }
+        .btn-edit {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+        .btn-edit:hover { background: #bae6fd; }
+        .btn-delete {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .btn-delete:hover { background: #fecaca; }
+        .btn-readonly {
+            background: #f1f5f9;
+            color: #94a3b8;
+            cursor: default;
+        }
+        .btn-readonly:hover { transform: none; }
+
+        /* ── Professional form styles (unchanged) ── */
         .form-card {
             border: none !important;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06) !important;
@@ -148,7 +184,6 @@
         .form-card .card-title svg {
             color: #4f46e5;
         }
-
         .form-group {
             margin-bottom: 1.25rem;
         }
@@ -165,7 +200,6 @@
             color: #ef4444;
             margin-left: 0.15rem;
         }
-
         .input-icon-wrapper {
             position: relative;
         }
@@ -184,7 +218,6 @@
             pointer-events: none;
             stroke-width: 2;
         }
-
         .form-control-enhanced {
             width: 100%;
             padding: 0.7rem 1rem;
@@ -214,13 +247,11 @@
             background-size: 1.2rem;
             padding-right: 2.8rem;
         }
-
         .form-row-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
         }
-
         .char-counter {
             text-align: right;
             font-size: 0.75rem;
@@ -234,7 +265,6 @@
         .char-counter.danger {
             color: #ef4444;
         }
-
         .btn-submit {
             background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             color: white;
@@ -295,6 +325,13 @@
                 width: 100%;
                 justify-content: center;
             }
+            .action-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-action {
+                justify-content: center;
+            }
         }
         @media (max-width: 480px) {
             .filter-bar .filter-group {
@@ -338,7 +375,6 @@
                             <option value="MILD">Mild</option>
                             <option value="SEVERE">Severe</option>
                             <option value="VERY_SEVERE">Very Severe</option>
-                            <!-- New severity options -->
                             <option value="SUSPENDED_2W">Suspended (2 weeks)</option>
                             <option value="INDEF_SUSPENDED">Indefinitely Suspended</option>
                             <option value="EXPELLED">Expelled</option>
@@ -386,15 +422,37 @@
                                         <small style="color:#64748b;">@{{ record.reported_by.username }}</small>
                                     </td>
                                     <td style="text-align: right; vertical-align: middle;">
-                                        {% if is_admin or record.reported_by == request.user %}
-                                            <a href="{% url 'attendance:delete_complaint' record.id %}"
-                                               class="btn btn-danger"
-                                               onclick="return confirm('Are you sure you want to permanently delete this file record?');">
-                                                Delete
-                                            </a>
-                                        {% else %}
-                                            <span style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">Read-Only</span>
-                                        {% endif %}
+                                        <div class="action-group">
+                                            {% if is_admin or record.reported_by == request.user %}
+                                                <!-- Edit button -->
+                                                <a href="{% url 'attendance:edit_complaint' record.id %}" class="btn-action btn-edit">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                    </svg>
+                                                    Edit
+                                                </a>
+                                                <!-- Delete button -->
+                                                <a href="{% url 'attendance:delete_complaint' record.id %}"
+                                                   class="btn-action btn-delete"
+                                                   onclick="return confirm('Are you sure you want to permanently delete this file record?');">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <polyline points="3 6 5 6 21 6"/>
+                                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                                    </svg>
+                                                    Delete
+                                                </a>
+                                            {% else %}
+                                                <span class="btn-action btn-readonly">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <circle cx="12" cy="12" r="10"/>
+                                                        <line x1="12" y1="8" x2="12" y2="12"/>
+                                                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                                    </svg>
+                                                    Read-Only
+                                                </span>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                 </tr>
                             {% empty %}
@@ -461,7 +519,6 @@
                                     {% for code, label in severities %}
                                         <option value="{{ code }}">{{ label }}</option>
                                     {% endfor %}
-                                    <!-- Fallback new severity options (in case model not yet updated) -->
                                     <option value="SUSPENDED_2W">Suspended (2 weeks)</option>
                                     <option value="INDEF_SUSPENDED">Indefinitely Suspended</option>
                                     <option value="EXPELLED">Expelled</option>

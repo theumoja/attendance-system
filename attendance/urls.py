@@ -129,7 +129,7 @@ urlpatterns = [
     path('disciplinary/', views_users.disciplinary_dashboard, name='disciplinary_dashboard'),
     path('disciplinary/add/', views_users.add_complaint, name='add_complaint'),
     path('disciplinary/delete/<int:record_id>/', views_users.delete_complaint, name='delete_complaint'),
-    
+    path('complaint/<int:pk>/edit/', views_users.edit_complaint, name='edit_complaint'),    
 
     # In attendance/urls.py
     path('warden-dashboard/', views_users.warden_dashboard, name='warden_dashboard'),

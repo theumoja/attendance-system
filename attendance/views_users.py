@@ -312,6 +312,18 @@ def librarian_dashboard(request):
     }
     return render(request, 'attendance/librarian_dashboard.html', context)
 
+
+
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.utils import timezone
+from datetime import timedelta
+from .models import (
+    User, LibraryRecord, Book, StudentProfile, TeacherProfile, Department
+)
+
 @login_required
 @transaction.atomic
 def manage_library(request):
@@ -395,15 +407,15 @@ def manage_library(request):
     books = Book.objects.all().order_by('title')
     students = StudentProfile.objects.all().order_by('name')
     teachers = TeacherProfile.objects.all().order_by('name')
+    departments = Department.objects.all().order_by('name')   # <-- NEW
 
     return render(request, 'attendance/manage_library.html', {
         'records': records,
         'books': books,
         'students': students,
         'teachers': teachers,
+        'departments': departments,                           # <-- NEW
     })
-
-
 
 
 @login_required
@@ -422,6 +434,7 @@ def upload_books(request):
         author = request.POST.get('author', '').strip()
         isbn = request.POST.get('isbn', '').strip()
         total_copies_str = request.POST.get('total_copies', '1')
+        department_id = request.POST.get('department')  # new
 
         if not title:
             messages.error(request, "Book title is required.")
@@ -433,6 +446,14 @@ def upload_books(request):
                 total_copies = 1
         except ValueError:
             total_copies = 1
+
+        # Resolve department if provided
+        department = None
+        if department_id:
+            try:
+                department = Department.objects.get(id=department_id)
+            except Department.DoesNotExist:
+                messages.warning(request, "Selected department not found; book will be added without a department.")
 
         # Check for existing book by ISBN (if provided) or exact title
         book = None
@@ -449,28 +470,31 @@ def upload_books(request):
                 book.author = author
             if isbn:
                 book.isbn = isbn
+            # Update department if a valid one was provided, otherwise keep existing
+            if department:
+                book.department = department
             book.save()
             messages.success(
-                request, 
+                request,
                 f"Updated stock for '{book.title}'. Added {total_copies} more copy/copies."
             )
         else:
-            # Create new book
+            # Create new book with optional department
             Book.objects.create(
                 title=title,
                 author=author,
                 isbn=isbn if isbn else None,
                 total_copies=total_copies,
-                available_copies=total_copies
+                available_copies=total_copies,
+                department=department  # may be None
             )
             messages.success(request, f"Successfully cataloged '{title}'.")
 
         return redirect('attendance:upload_books')
 
-    # GET – render the standalone form
-    return render(request, 'attendance/upload_books.html')
-
-
+    # GET – render the standalone form with department choices
+    departments = Department.objects.all().order_by('name')
+    return render(request, 'attendance/upload_books.html', {'departments': departments})
 
 
 
@@ -2058,6 +2082,46 @@ def disciplinary_dashboard(request):
     return render(request, 'attendance/disciplinary_dashboard.html', context)
 
 
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import transaction
+from .models import DisciplinaryRecord, StudentProfile, AcademicTerm
+from .forms import DisciplinaryEditForm  # we'll create this next
+
+@login_required
+def edit_complaint(request, pk):
+    record = get_object_or_404(DisciplinaryRecord, pk=pk)
+    
+    # Permissions: only admin or the original reporter can edit
+    if not (request.user.role == User.IS_ADMIN or record.reported_by == request.user):
+        messages.error(request, "You are not authorized to edit this complaint.")
+        return redirect('attendance:disciplinary_dashboard')
+    
+    if request.method == 'POST':
+        form = DisciplinaryEditForm(request.POST, instance=record)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Complaint record updated successfully.")
+            return redirect('attendance:disciplinary_dashboard')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = DisciplinaryEditForm(instance=record)
+    
+    # Prepare list of students for the dropdown (same as dashboard)
+    students = StudentProfile.objects.all().order_by('name')
+    terms = AcademicTerm.objects.all().order_by('-academic_year', 'term')
+    
+    return render(request, 'attendance/disciplinary_edit.html', {
+        'form': form,
+        'record': record,
+        'students': students,
+        'terms': terms,
+    })
+
+    
 @login_required
 @transaction.atomic
 def add_complaint(request):

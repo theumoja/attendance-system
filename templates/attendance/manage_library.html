@@ -144,6 +144,13 @@
         overflow-x: auto;
         border-radius: 12px;
         border: 1px solid #f1f5f9;
+        max-height: 420px;          /* default limited height */
+        overflow-y: auto;
+        transition: max-height 0.3s ease;
+    }
+    .table-responsive.expanded {
+        max-height: none;
+        overflow-y: visible;
     }
     .table {
         width: 100%;
@@ -154,6 +161,9 @@
     .table thead {
         background: #f8fafc;
         border-bottom: 2px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+        z-index: 2;
     }
     .table th {
         font-weight: 700;
@@ -276,6 +286,15 @@
         background: #d97706;
         transform: translateY(-1px);
         box-shadow: 0 4px 8px -2px rgba(245, 158, 11, 0.3);
+    }
+    .btn-outline {
+        background: transparent;
+        border: 1.5px solid #e2e8f0;
+        color: #475569;
+    }
+    .btn-outline:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
     }
 
     /* ----- Book selector (enhanced) ----- */
@@ -571,6 +590,38 @@
         font-size: 0.95rem;
     }
 
+    /* ----- Summary stats ----- */
+    .stats-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        padding: 0.75rem 0.5rem;
+        background: #f8fafc;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        border: 1px solid #e2e8f0;
+    }
+    .stats-bar .stat-item {
+        display: flex;
+        align-items: baseline;
+        gap: 0.3rem;
+    }
+    .stats-bar .stat-item .label {
+        color: #64748b;
+        font-weight: 500;
+    }
+    .stats-bar .stat-item .value {
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .stats-bar .stat-item .value.available {
+        color: #10b981;
+    }
+    .stats-bar .stat-item .value.out-of-stock {
+        color: #ef4444;
+    }
+
     @media (max-width: 768px) {
         .card {
             padding: 1.25rem;
@@ -607,6 +658,20 @@
         .book-selector .qty-wrap {
             flex: 1;
         }
+        .stats-bar {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+    }
+
+    /* Scrollable table with toggle button */
+    .table-toggle-wrapper {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.5rem;
+    }
+    .table-toggle-wrapper .btn {
+        font-size: 0.8rem;
     }
 </style>
 
@@ -633,7 +698,7 @@
                     <!-- Search -->
                     <input type="text" id="libSearch" class="search-bar" placeholder="Search logs by borrower or book...">
                 </div>
-                <!-- ========== NEW FILTER BAR ========== -->
+                <!-- ========== FILTER BAR (enhanced with department) ========== -->
                 <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
                     <div class="filter-group">
                         <label for="statusFilter"><i class="fas fa-filter"></i> Status</label>
@@ -642,6 +707,15 @@
                             <option value="issued">Issued</option>
                             <option value="returned">Returned</option>
                             <option value="overdue">Overdue</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="libDeptFilter"><i class="fas fa-building"></i> Department</label>
+                        <select id="libDeptFilter" class="form-control-sm">
+                            <option value="all">All Departments</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="filter-group">
@@ -660,13 +734,22 @@
                     </span>
                 </div>
 
-                <div class="table-responsive">
+                <!-- Stats summary for transactions (optional) -->
+                <div class="stats-bar" id="transStats">
+                    <span class="stat-item"><span class="label">Total Transactions:</span> <span class="value" id="transTotalCount">0</span></span>
+                    <span class="stat-item"><span class="label">Issued:</span> <span class="value" id="transIssuedCount">0</span></span>
+                    <span class="stat-item"><span class="label">Returned:</span> <span class="value" id="transReturnedCount">0</span></span>
+                    <span class="stat-item"><span class="label">Overdue:</span> <span class="value" style="color:#dc2626;" id="transOverdueCount">0</span></span>
+                </div>
+
+                <div class="table-responsive" id="transTableWrapper">
                     <table class="table" id="libTable">
                         <thead>
                             <tr>
                                 <th>Date Issued</th>
                                 <th>Borrower</th>
                                 <th>Book Title</th>
+                                <th>Department</th>
                                 <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Action</th>
@@ -679,6 +762,7 @@
                                 data-due-date="{{ record.due_date|date:'Y-m-d' }}"
                                 data-status="{{ record.status }}"
                                 data-borrower="{{ record.student.name|lower }}{% if record.teacher %}{{ record.teacher.name|lower }}{% endif %}"
+                                data-department-id="{% if record.book.department %}{{ record.book.department.id }}{% else %}none{% endif %}"
                             >
                                 <td>{{ record.issue_date|date:"M d, Y" }}</td>
                                 <td>
@@ -691,6 +775,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ record.book.title }}</td>
+                                <td>{% if record.book.department %}{{ record.book.department.name }}{% else %}—{% endif %}</td>
                                 <td>{{ record.due_date|date:"M d, Y" }}</td>
                                 <td>
                                     {% if record.status == 'ISSUED' %}
@@ -711,7 +796,7 @@
                             </tr>
                             {% empty %}
                             <tr id="emptyStateRow">
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <i class="fas fa-folder-open"></i>
                                         <p>No transaction logs found in the archives.</p>
@@ -721,13 +806,18 @@
                             {% endfor %}
                             <!-- hidden no-match row -->
                             <tr id="noMatchRow" style="display:none;">
-                                <td colspan="6" style="text-align:center; padding:2rem; color:#94a3b8;">
+                                <td colspan="7" style="text-align:center; padding:2rem; color:#94a3b8;">
                                     <i class="fas fa-search" style="display:block; font-size:2rem; margin-bottom:0.5rem;"></i>
                                     No transactions match your filters.
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="table-toggle-wrapper">
+                    <button class="btn btn-sm btn-outline" id="transToggleBtn" onclick="toggleTableHeight('transTableWrapper')">
+                        <i class="fas fa-expand"></i> Show All
+                    </button>
                 </div>
             </div>
         </div>
@@ -741,23 +831,62 @@
                     </h2>
                     <input type="text" id="catalogSearch" class="search-bar" placeholder="Search title, author or ISBN...">
                 </div>
-                <div class="table-responsive">
+                <!-- ========== CATALOG FILTERS (department + availability) ========== -->
+                <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
+                    <div class="filter-group">
+                        <label for="catalogDeptFilter"><i class="fas fa-building"></i> Department</label>
+                        <select id="catalogDeptFilter" class="form-control-sm">
+                            <option value="all">All Departments</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="catalogAvailFilter"><i class="fas fa-boxes"></i> Availability</label>
+                        <select id="catalogAvailFilter" class="form-control-sm">
+                            <option value="all">All</option>
+                            <option value="available">Available</option>
+                            <option value="outofstock">Out of Stock</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="clearCatalogFiltersBtn" style="background:#e2e8f0; color:#475569;">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
+                        Showing <strong id="catalogVisibleCount">0</strong> of <strong id="catalogTotalCount">0</strong> books
+                    </span>
+                </div>
+
+                <!-- Stats summary for catalog -->
+                <div class="stats-bar" id="catalogStats">
+                    <span class="stat-item"><span class="label">Total Titles:</span> <span class="value" id="catTotalTitles">0</span></span>
+                    <span class="stat-item"><span class="label">Total Copies:</span> <span class="value" id="catTotalCopies">0</span></span>
+                    <span class="stat-item"><span class="label">Available Copies:</span> <span class="value available" id="catAvailCopies">0</span></span>
+                    <span class="stat-item"><span class="label">Out of Stock Titles:</span> <span class="value out-of-stock" id="catOutOfStock">0</span></span>
+                </div>
+
+                <div class="table-responsive" id="catalogTableWrapper">
                     <table class="table" id="catalogTable">
                         <thead>
                             <tr>
                                 <th>Book Title</th>
                                 <th>Author</th>
                                 <th>ISBN</th>
+                                <th>Department</th>
                                 <th style="text-align:center;">Available</th>
                                 <th style="text-align:center;">Total</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="catalogTableBody">
                             {% for book in books %}
-                            <tr>
+                            <tr data-department-id="{% if book.department %}{{ book.department.id }}{% else %}none{% endif %}"
+                                data-available="{{ book.available_copies }}"
+                                data-total="{{ book.total_copies }}">
                                 <td><strong>{{ book.title }}</strong></td>
                                 <td>{{ book.author|default:"—" }}</td>
                                 <td><code>{{ book.isbn|default:"—" }}</code></td>
+                                <td>{% if book.department %}{{ book.department.name }}{% else %}—{% endif %}</td>
                                 <td style="text-align:center;">
                                     {% if book.available_copies < 1 %}
                                         <span class="badge badge-danger">Out of Stock</span>
@@ -769,7 +898,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div class="empty-state">
                                         <i class="fas fa-book"></i>
                                         <p>The catalog is currently empty. Use the <strong>Upload New Books</strong> form on the right.</p>
@@ -780,11 +909,16 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="table-toggle-wrapper">
+                    <button class="btn btn-sm btn-outline" id="catalogToggleBtn" onclick="toggleTableHeight('catalogTableWrapper')">
+                        <i class="fas fa-expand"></i> Show All
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ========== RIGHT COLUMN ========== -->
+    <!-- ========== RIGHT COLUMN (unchanged) ========== -->
     <div>
         <!-- Quick Issue Book -->
         <div class="card quick-issue-card">
@@ -869,7 +1003,7 @@
         <!-- Upload New Books -->
         <div class="card add-book-card" id="add-book-section">
             <h3 class="card-title"><i class="fas fa-cloud-upload-alt accent"></i> Upload New Books</h3>
-            <form action="{% url 'attendance:add_book' %}" method="POST">
+            <form action="{% url 'attendance:upload_books' %}" method="POST">
                 {% csrf_token %}
 
                 <div class="form-group">
@@ -891,6 +1025,18 @@
                 <div class="form-group">
                     <label for="new_copies"><i class="fas fa-copy"></i> Available Stock Copies</label>
                     <input type="number" name="total_copies" id="new_copies" class="form-control" min="1" value="1" required>
+                </div>
+
+                <!-- ===== NEW: Department dropdown ===== -->
+                <div class="form-group">
+                    <label for="id_department"><i class="fas fa-building"></i> Department (optional)</label>
+                    <select name="department" id="id_department" class="form-control">
+                        <option value="">-- Select department --</option>
+                        {% for dept in departments %}
+                            <option value="{{ dept.id }}">{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">If the book is associated with a specific academic department, you may choose it here.</small>
                 </div>
 
                 <button type="submit" class="btn btn-success" style="width:100%;">
@@ -1166,18 +1312,24 @@
         };
 
         // ==========================================
-        //  TRANSACTIONS FILTER LOGIC (Frontend JS)
+        //  TRANSACTIONS FILTER LOGIC (enhanced)
         // ==========================================
         const tableBody = document.getElementById('libTableBody');
         const statusFilter = document.getElementById('statusFilter');
         const dateFrom = document.getElementById('dateFrom');
         const dateTo = document.getElementById('dateTo');
         const searchInputLib = document.getElementById('libSearch');
+        const libDeptFilter = document.getElementById('libDeptFilter');
         const clearFiltersBtn = document.getElementById('clearFiltersBtn');
         const visibleCount = document.getElementById('visibleCount');
         const totalCount = document.getElementById('totalCount');
         const emptyStateRow = document.getElementById('emptyStateRow');
         const noMatchRow = document.getElementById('noMatchRow');
+        // stats elements
+        const transTotal = document.getElementById('transTotalCount');
+        const transIssued = document.getElementById('transIssuedCount');
+        const transReturned = document.getElementById('transReturnedCount');
+        const transOverdue = document.getElementById('transOverdueCount');
 
         // Helper: get all data rows (exclude empty/no-match rows)
         function getDataRows() {
@@ -1185,7 +1337,7 @@
                 .filter(row => row.id !== 'emptyStateRow' && row.id !== 'noMatchRow');
         }
 
-        // Mark overdue rows and compute status
+        // Mark overdue rows
         function markOverdueRows() {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -1198,7 +1350,7 @@
                     if (status === 'ISSUED' && due < today) {
                         row.classList.add('overdue-row');
                         // change status badge to overdue
-                        const statusCell = row.querySelector('td:nth-child(5)');
+                        const statusCell = row.querySelector('td:nth-child(6)');
                         if (statusCell) {
                             const badge = statusCell.querySelector('.badge');
                             if (badge) {
@@ -1213,21 +1365,23 @@
             });
         }
 
-        // Apply all filters
+        // Apply all filters (including department)
         function applyFilters() {
             const searchVal = searchInputLib.value.toLowerCase().trim();
             const statusVal = statusFilter.value;
             const fromVal = dateFrom.value;
             const toVal = dateTo.value;
+            const deptVal = libDeptFilter.value;
 
             const rows = getDataRows();
             let visible = 0;
             const total = rows.length;
+            let issuedCount = 0, returnedCount = 0, overdueCount = 0;
 
             rows.forEach(row => {
                 let show = true;
 
-                // Search (by any text in row)
+                // Search
                 if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) {
                     show = false;
                 }
@@ -1236,7 +1390,6 @@
                 if (show && statusVal !== 'all') {
                     let rowStatus = row.dataset.status;
                     if (statusVal === 'overdue') {
-                        // check if row has overdue class
                         if (!row.classList.contains('overdue-row')) {
                             show = false;
                         }
@@ -1251,7 +1404,15 @@
                     }
                 }
 
-                // Date range (issue date)
+                // Department filter
+                if (show && deptVal !== 'all') {
+                    const rowDept = row.dataset.departmentId || 'none';
+                    if (rowDept !== deptVal) {
+                        show = false;
+                    }
+                }
+
+                // Date range
                 if (show && (fromVal || toVal)) {
                     const issueDate = row.dataset.issueDate;
                     if (issueDate) {
@@ -1270,6 +1431,14 @@
                 if (show) {
                     row.style.display = '';
                     visible++;
+                    // Count statuses
+                    const status = row.dataset.status;
+                    if (status === 'ISSUED') {
+                        issuedCount++;
+                        if (row.classList.contains('overdue-row')) overdueCount++;
+                    } else if (status === 'RETURNED') {
+                        returnedCount++;
+                    }
                 } else {
                     row.style.display = 'none';
                 }
@@ -1278,6 +1447,10 @@
             // Update counts
             totalCount.textContent = total;
             visibleCount.textContent = visible;
+            transTotal.textContent = total;
+            transIssued.textContent = issuedCount;
+            transReturned.textContent = returnedCount;
+            transOverdue.textContent = overdueCount;
 
             // Show/hide empty states
             if (emptyStateRow) {
@@ -1288,29 +1461,27 @@
             }
         }
 
-        // ----- Event listeners for filters -----
+        // ----- Event listeners for transactions filters -----
         statusFilter.addEventListener('change', applyFilters);
         dateFrom.addEventListener('change', applyFilters);
         dateTo.addEventListener('change', applyFilters);
         searchInputLib.addEventListener('input', applyFilters);
+        libDeptFilter.addEventListener('change', applyFilters);
 
-        // Clear all filters
         clearFiltersBtn.addEventListener('click', function() {
             statusFilter.value = 'all';
             dateFrom.value = '';
             dateTo.value = '';
             searchInputLib.value = '';
+            libDeptFilter.value = 'all';
             applyFilters();
         });
 
-        // ----- Initialisation -----
-        // First, mark overdue rows
+        // ----- Initialise transactions -----
         markOverdueRows();
-        // Then apply filters (sets counts)
         applyFilters();
 
-        // Re-run overdue marking after any DOM update (e.g., after return)
-        // We'll also observe for changes (optional)
+        // Observe for changes (e.g., after return)
         if (window.MutationObserver) {
             const observer = new MutationObserver(function() {
                 markOverdueRows();
@@ -1319,20 +1490,106 @@
             observer.observe(tableBody, { childList: true, subtree: true });
         }
 
-        // ----- Catalog search (existing) -----
-        document.getElementById('catalogSearch').addEventListener('keyup', function() {
-            const query = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#catalogTable tbody tr');
+        // ==========================================
+        //  CATALOG FILTER LOGIC
+        // ==========================================
+        const catalogBody = document.getElementById('catalogTableBody');
+        const catalogSearch = document.getElementById('catalogSearch');
+        const catalogDeptFilter = document.getElementById('catalogDeptFilter');
+        const catalogAvailFilter = document.getElementById('catalogAvailFilter');
+        const clearCatalogFilters = document.getElementById('clearCatalogFiltersBtn');
+        const catVisible = document.getElementById('catalogVisibleCount');
+        const catTotal = document.getElementById('catalogTotalCount');
+        const catTotalTitles = document.getElementById('catTotalTitles');
+        const catTotalCopies = document.getElementById('catTotalCopies');
+        const catAvailCopies = document.getElementById('catAvailCopies');
+        const catOutOfStock = document.getElementById('catOutOfStock');
+
+        function applyCatalogFilters() {
+            const searchVal = catalogSearch.value.toLowerCase().trim();
+            const deptVal = catalogDeptFilter.value;
+            const availVal = catalogAvailFilter.value;
+
+            const rows = Array.from(catalogBody.querySelectorAll('tr'));
+            let visible = 0;
+            const total = rows.length;
+            let totalCopies = 0, availCopies = 0, outOfStock = 0;
+
             rows.forEach(row => {
-                if (row.cells.length > 1) {
-                    const text = row.textContent.toLowerCase();
-                    row.style.display = text.includes(query) ? '' : 'none';
+                let show = true;
+
+                // Search
+                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) {
+                    show = false;
+                }
+
+                // Department
+                if (show && deptVal !== 'all') {
+                    const rowDept = row.dataset.departmentId || 'none';
+                    if (rowDept !== deptVal) {
+                        show = false;
+                    }
+                }
+
+                // Availability
+                if (show && availVal !== 'all') {
+                    const avail = parseInt(row.dataset.available) || 0;
+                    if (availVal === 'available' && avail < 1) show = false;
+                    if (availVal === 'outofstock' && avail > 0) show = false;
+                }
+
+                if (show) {
+                    row.style.display = '';
+                    visible++;
+                    // calculate stats for visible rows
+                    const avail = parseInt(row.dataset.available) || 0;
+                    const total = parseInt(row.dataset.total) || 0;
+                    totalCopies += total;
+                    availCopies += avail;
+                    if (avail === 0) outOfStock++;
+                } else {
+                    row.style.display = 'none';
                 }
             });
+
+            catVisible.textContent = visible;
+            catTotal.textContent = total;
+            catTotalTitles.textContent = total;
+            catTotalCopies.textContent = totalCopies;
+            catAvailCopies.textContent = availCopies;
+            catOutOfStock.textContent = outOfStock;
+        }
+
+        // Event listeners for catalog
+        catalogSearch.addEventListener('input', applyCatalogFilters);
+        catalogDeptFilter.addEventListener('change', applyCatalogFilters);
+        catalogAvailFilter.addEventListener('change', applyCatalogFilters);
+        clearCatalogFilters.addEventListener('click', function() {
+            catalogSearch.value = '';
+            catalogDeptFilter.value = 'all';
+            catalogAvailFilter.value = 'all';
+            applyCatalogFilters();
         });
 
-        // ----- Also reapply filters when catalog search is used (no conflict) -----
+        // Initial catalog filter
+        applyCatalogFilters();
 
+        // ==========================================
+        //  TABLE HEIGHT TOGGLE
+        // ==========================================
+        window.toggleTableHeight = function(wrapperId) {
+            const wrapper = document.getElementById(wrapperId);
+            if (!wrapper) return;
+            wrapper.classList.toggle('expanded');
+            const btn = wrapper.parentElement.querySelector('.table-toggle-wrapper .btn');
+            if (btn) {
+                if (wrapper.classList.contains('expanded')) {
+                    btn.innerHTML = '<i class="fas fa-compress"></i> Show Less';
+                } else {
+                    btn.innerHTML = '<i class="fas fa-expand"></i> Show All';
+                }
+            }
+        };
     });
 </script>
 {% endblock %}

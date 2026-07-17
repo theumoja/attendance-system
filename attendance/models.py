@@ -165,19 +165,26 @@ class StudentProfile(models.Model):
 
 # ==================== ENHANCED: INSTITUTIONAL LIBRARY SYSTEM ====================
 
+# Inside models.py, after the existing Book fields:
+
 class Book(models.Model):
-    """
-    Stores individual book titles and tracks inventory stock counts.
-    """
     title = models.CharField(max_length=255, unique=True, help_text="The official title of the resource book")
     author = models.CharField(max_length=255, blank=True, null=True, help_text="Author(s) of the book")
     isbn = models.CharField(max_length=50, blank=True, null=True, unique=True, help_text="International Standard Book Number")
     total_copies = models.PositiveIntegerField(default=1, help_text="Total copies owned by the school")
     available_copies = models.PositiveIntegerField(default=1, help_text="Currently available copies on shelves")
+    # NEW: optional department
+    department = models.ForeignKey(
+        'Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='books',
+        help_text="The academic department to which this book belongs (optional)"
+    )
 
     def __str__(self):
         return f"{self.title} by {self.author or 'Unknown'} ({self.available_copies}/{self.total_copies} available)"
-
 
 class LibraryRecord(models.Model):
     """
