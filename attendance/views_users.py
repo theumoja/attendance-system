@@ -333,7 +333,8 @@ from datetime import timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
-from .models import Book, LibraryRecord, ReserveRequest, StudentProfile, TeacherProfile
+# 1. Make sure Department is imported
+from .models import Book, LibraryRecord, ReserveRequest, StudentProfile, TeacherProfile, Department
 
 def manage_library(request):
     if request.method == 'POST':
@@ -500,6 +501,9 @@ def manage_library(request):
     students = StudentProfile.objects.all().order_by('name')
     teachers = TeacherProfile.objects.all().order_by('name')
     
+    # 2. Query departments from database
+    departments = Department.objects.all().order_by('name')
+
     issued_records = LibraryRecord.objects.filter(status='ISSUED').select_related('student', 'teacher', 'book').order_by('-issue_date')
     history_records = LibraryRecord.objects.filter(status='RETURNED').select_related('student', 'teacher', 'book').order_by('-return_date')[:50]
     reserve_requests = ReserveRequest.objects.select_related('student', 'teacher', 'book').order_by('-request_date')
@@ -508,13 +512,12 @@ def manage_library(request):
         'books': books,
         'students': students,
         'teachers': teachers,
+        'departments': departments,  # 3. Added departments to context here
         'issued_records': issued_records,
         'history_records': history_records,
         'reserve_requests': reserve_requests,
     }
     return render(request, 'attendance/manage_library.html', context)
-
-
 
 
 @login_required
