@@ -167,13 +167,14 @@ class StudentProfile(models.Model):
 
 # Inside models.py, after the existing Book fields:
 
+# attendance/models.py
+
 class Book(models.Model):
     title = models.CharField(max_length=255, unique=True, help_text="The official title of the resource book")
     author = models.CharField(max_length=255, blank=True, null=True, help_text="Author(s) of the book")
     isbn = models.CharField(max_length=50, blank=True, null=True, unique=True, help_text="International Standard Book Number")
     total_copies = models.PositiveIntegerField(default=1, help_text="Total copies owned by the school")
     available_copies = models.PositiveIntegerField(default=1, help_text="Currently available copies on shelves")
-    # NEW: optional department
     department = models.ForeignKey(
         'Department',
         on_delete=models.SET_NULL,
@@ -182,9 +183,58 @@ class Book(models.Model):
         related_name='books',
         help_text="The academic department to which this book belongs (optional)"
     )
+    # NEW: Flag to differentiate standard shelf books from reference/reserve books
+    is_reserve = models.BooleanField(
+        default=False, 
+        help_text="Designates if this book is in the restricted Reserve Collection"
+    )
 
     def __str__(self):
-        return f"{self.title} by {self.author or 'Unknown'} ({self.available_copies}/{self.total_copies} available)"
+        category = " [RESERVE]" if self.is_reserve else ""
+        return f"{self.title}{category} by {self.author or 'Unknown'} ({self.available_copies}/{self.total_copies} available)"
+
+
+class ReserveRequest(models.Model):
+    """
+    Tracks student and teacher applications for hidden/restricted Reserve Books.
+    """
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending Librarian Approval'),
+        ('APPROVED', 'Approved for In-Library Access'),
+        ('REJECTED', 'Application Declined'),
+        ('COMPLETED', 'Completed / Returned'),  # <-- ADD THIS STATUS
+    ]
+
+    student = models.ForeignKey(
+        'StudentProfile', 
+        on_delete=models.CASCADE, 
+        related_name='reserve_requests',
+        null=True,
+        blank=True
+    )
+    teacher = models.ForeignKey(
+        'TeacherProfile', 
+        on_delete=models.CASCADE, 
+        related_name='reserve_requests',
+        null=True,
+        blank=True
+    )
+    book = models.ForeignKey(
+        Book, 
+        on_delete=models.CASCADE, 
+        related_name='reserve_requests'
+    )
+    request_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    purpose_notes = models.TextField(blank=True, null=True, help_text="Reason for requesting this reserve title")
+
+    class Meta:
+        ordering = ['-request_date']
+
+    def __str__(self):
+        applicant = self.student.name if self.student else (self.teacher.name if self.teacher else "Unknown")
+        return f"Reserve Application: '{self.book.title}' by {applicant} ({self.status})"
+
 
 class LibraryRecord(models.Model):
     """

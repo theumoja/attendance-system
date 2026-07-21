@@ -91,6 +91,7 @@ urlpatterns = [
 
     # 1. Admin Role & User Management Dashboard
     path('admin/users/', views_admin.manage_users, name='manage_users'),
+    path('library/reserve/apply/<int:book_id>/', views_users.apply_reserve_book, name='apply_reserve_book'),
 
     # 2. Lodgings & Hostel Overview (Viewable by everyone based on template permissions)
     path('lodgings/', views_users.view_lodgings, name='view_lodgings'),

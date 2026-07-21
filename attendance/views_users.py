@@ -312,117 +312,287 @@ def librarian_dashboard(request):
     }
     return render(request, 'attendance/librarian_dashboard.html', context)
 
+from datetime import timedelta
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import transaction
+from django.utils import timezone
+from .models import Book, LibraryRecord, StudentProfile, TeacherProfile, Department, ReserveRequest, User
 
-
+from datetime import timedelta
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
+
+from .models import User, LibraryRecord, ReserveRequest, Book, StudentProfile, TeacherProfile, Department
+
+from datetime import timedelta
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
-from datetime import timedelta
-from .models import (
-    User, LibraryRecord, Book, StudentProfile, TeacherProfile, Department
-)
+from .models import Book, LibraryRecord, ReserveRequest, StudentProfile, TeacherProfile
 
-@login_required
-@transaction.atomic
 def manage_library(request):
-    if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
-        return render(request, 'errors/403.html', status=403)
-    
-    # Inline quick issuance submit handler (enhanced for quantities)
     if request.method == 'POST':
-        borrower_type = request.POST.get('borrower_type')
-        student_id = request.POST.get('student_id')
-        teacher_id = request.POST.get('teacher_id')
-        
-        # Get arrays from the enhanced form
-        book_ids = request.POST.getlist('book_ids[]')
-        quantities = request.POST.getlist('quantities[]')
-        
-        remarks = request.POST.get('remarks', '')
-        due_date = timezone.now().date() + timedelta(days=14)  # Default 14 days
+        action = request.POST.get('action')
 
-        student_obj = None
-        teacher_obj = None
-        
-        if borrower_type == 'student' and student_id:
-            student_obj = get_object_or_404(StudentProfile, reg_number=student_id)
-        elif borrower_type == 'teacher' and teacher_id:
-            # LOOKUP BY NAME (since front-end sends the teacher's name)
-            teacher_obj = get_object_or_404(TeacherProfile, name=teacher_id)
+        # ---------- ACTION 1: Approve Reserve Request ----------
+        if action == 'approve_reserve':
+            reserve_id = request.POST.get('reserve_id')
+            reserve_req = get_object_or_404(ReserveRequest, id=reserve_id)
             
-        if not student_obj and not teacher_obj:
-            messages.error(request, "Please choose a valid Student or Teacher.")
-            return redirect('attendance:manage_library')
-            
-        if not book_ids:
-            messages.error(request, "Please select at least one book to issue.")
-            return redirect('attendance:manage_library')
-        
-        # Validate quantities match
-        if len(book_ids) != len(quantities):
-            messages.error(request, "Invalid data: book and quantity mismatch.")
-            return redirect('attendance:manage_library')
-            
-        issued_count = 0
-        for b_id, qty_str in zip(book_ids, quantities):
-            try:
-                qty = int(qty_str)
-            except ValueError:
-                qty = 1
-            if qty < 1:
-                qty = 1
-                
-            book = get_object_or_404(Book, id=b_id)
-            if book.available_copies < qty:
+            if reserve_req.book.available_copies < 1:
                 messages.error(
-                    request,
-                    f"Not enough copies of '{book.title}'. Available: {book.available_copies}, requested: {qty}."
+                    request, 
+                    f"Cannot approve request: '{reserve_req.book.title}' is out of stock."
                 )
                 return redirect('attendance:manage_library')
-            
-            for _ in range(qty):
-                LibraryRecord.objects.create(
-                    student=student_obj,
-                    teacher=teacher_obj,
-                    book=book,
-                    due_date=due_date,
-                    remarks=remarks,
-                    status='ISSUED'
-                )
-                book.available_copies -= 1
-                book.save()
-                issued_count += 1
-                
-        if issued_count > 0:
-            messages.success(request, f"Successfully processed {issued_count} book(s) issuance.")
-        else:
-            messages.error(request, "Transaction aborted: Selected book(s) are out of stock.")
-            
-        return redirect('attendance:manage_library')
 
-    # GET – render the page
-    records = LibraryRecord.objects.select_related('student', 'teacher', 'book').all().order_by('-issue_date')
+            reserve_req.status = 'APPROVED'
+            reserve_req.save()
+
+            student_borrower = getattr(reserve_req, 'student', None)
+            teacher_borrower = getattr(reserve_req, 'teacher', None)
+            borrower_name = student_borrower.name if student_borrower else teacher_borrower.name
+
+            messages.success(
+                request, 
+                f"Approved reserve request for {borrower_name} ({reserve_req.book.title}). Ready for issuance via Quick Issue!"
+            )
+            return redirect('attendance:manage_library')
+
+        # ---------- ACTION 2: Reject Reserve Request ----------
+        elif action == 'reject_reserve':
+            reserve_id = request.POST.get('reserve_id')
+            reserve_req = get_object_or_404(ReserveRequest, id=reserve_id)
+            reserve_req.status = 'REJECTED'
+            reserve_req.save()
+
+            messages.info(request, f"Reserve request for '{reserve_req.book.title}' was rejected.")
+            return redirect('attendance:manage_library')
+
+        # ---------- ACTION 3: Quick Direct Issuance ----------
+        elif action == 'issue_books':
+            borrower_type = request.POST.get('borrower_type')
+            student_id = request.POST.get('student_id')
+            teacher_id = request.POST.get('teacher_id')
+            
+            book_ids = request.POST.getlist('book_ids[]')
+            quantities = request.POST.getlist('quantities[]')
+            
+            remarks = request.POST.get('remarks', '')
+            due_date = timezone.now().date() + timedelta(days=14)
+
+            student_obj = None
+            teacher_obj = None
+            
+            if borrower_type == 'student' and student_id:
+                student_obj = get_object_or_404(StudentProfile, reg_number=student_id)
+            elif borrower_type == 'teacher' and teacher_id:
+                teacher_obj = get_object_or_404(TeacherProfile, name=teacher_id)
+                
+            if not student_obj and not teacher_obj:
+                messages.error(request, "Please choose a valid Student or Teacher.")
+                return redirect('attendance:manage_library')
+                
+            if not book_ids:
+                messages.error(request, "Please select at least one book to issue.")
+                return redirect('attendance:manage_library')
+            
+            if len(book_ids) != len(quantities):
+                messages.error(request, "Invalid data: book and quantity mismatch.")
+                return redirect('attendance:manage_library')
+                
+            issued_count = 0
+            for b_id, qty_str in zip(book_ids, quantities):
+                try:
+                    qty = int(qty_str)
+                except ValueError:
+                    qty = 1
+                if qty < 1:
+                    qty = 1
+                    
+                book = get_object_or_404(Book, id=b_id)
+                
+                # Check Reserve Collection authorization
+                if book.is_reserve:
+                    reserve_kwargs = {'book': book, 'status': 'APPROVED'}
+                    if student_obj:
+                        reserve_kwargs['student'] = student_obj
+                    else:
+                        reserve_kwargs['teacher'] = teacher_obj
+
+                    approved_req = ReserveRequest.objects.filter(**reserve_kwargs).first()
+                    
+                    if not approved_req:
+                        messages.error(
+                            request, 
+                            f"'{book.title}' is in the Reserve Collection and can only be issued to borrowers with an approved reserve request."
+                        )
+                        return redirect('attendance:manage_library')
+                    
+                    # Mark the reserve request as fulfilled upon issuance
+                    approved_req.status = 'FULFILLED'
+                    approved_req.save()
+
+                if book.available_copies < qty:
+                    messages.error(
+                        request,
+                        f"Not enough copies of '{book.title}'. Available: {book.available_copies}, requested: {qty}."
+                    )
+                    return redirect('attendance:manage_library')
+                
+                for _ in range(qty):
+                    LibraryRecord.objects.create(
+                        student=student_obj,
+                        teacher=teacher_obj,
+                        book=book,
+                        due_date=due_date,
+                        remarks=remarks,
+                        status='ISSUED'
+                    )
+                    book.available_copies -= 1
+                    book.save()
+                    issued_count += 1
+
+            messages.success(request, f"Successfully issued {issued_count} book copy/copies.")
+            return redirect('attendance:manage_library')
+
+        # ---------- ACTION 4: Return Book ----------
+        elif action == 'return_book':
+            record_id = request.POST.get('record_id')
+            record = get_object_or_404(LibraryRecord, id=record_id)
+            
+            if record.status == 'RETURNED':
+                messages.warning(request, f"'{record.book.title}' has already been returned.")
+                return redirect('attendance:manage_library')
+                
+            record.status = 'RETURNED'
+            record.return_date = timezone.now().date()
+            record.save()
+            
+            # Increment stock back
+            record.book.available_copies += 1
+            record.book.save()
+            
+            # Complete/Reset associated Reserve Request
+            if record.student:
+                ReserveRequest.objects.filter(
+                    student=record.student, 
+                    book=record.book, 
+                    status__in=['APPROVED', 'FULFILLED']
+                ).update(status='COMPLETED')
+            elif record.teacher:
+                ReserveRequest.objects.filter(
+                    teacher=record.teacher, 
+                    book=record.book, 
+                    status__in=['APPROVED', 'FULFILLED']
+                ).update(status='COMPLETED')
+            
+            messages.success(request, f"'{record.book.title}' marked as returned.")
+            return redirect('attendance:manage_library')
+
+    # GET Request Context Setup
     books = Book.objects.all().order_by('title')
     students = StudentProfile.objects.all().order_by('name')
     teachers = TeacherProfile.objects.all().order_by('name')
-    departments = Department.objects.all().order_by('name')   # <-- NEW
+    
+    issued_records = LibraryRecord.objects.filter(status='ISSUED').select_related('student', 'teacher', 'book').order_by('-issue_date')
+    history_records = LibraryRecord.objects.filter(status='RETURNED').select_related('student', 'teacher', 'book').order_by('-return_date')[:50]
+    reserve_requests = ReserveRequest.objects.select_related('student', 'teacher', 'book').order_by('-request_date')
 
-    return render(request, 'attendance/manage_library.html', {
-        'records': records,
+    context = {
         'books': books,
         'students': students,
         'teachers': teachers,
-        'departments': departments,                           # <-- NEW
-    })
+        'issued_records': issued_records,
+        'history_records': history_records,
+        'reserve_requests': reserve_requests,
+    }
+    return render(request, 'attendance/manage_library.html', context)
 
+
+
+
+@login_required
+def library_reader_dashboard(request):
+    """
+    For students and teachers:
+    - Personal borrowed history
+    - General catalog vs. Reserve Collection separation
+    - Student & Teacher application status tracking for reserve items
+    """
+    if request.user.role not in [User.IS_STUDENT, User.IS_TEACHER]:
+        return render(request, 'errors/403.html', status=403)
+
+    profile = None
+    borrowed_records = []
+    my_reserve_requests = []
+
+    if request.user.role == User.IS_STUDENT:
+        try:
+            profile = request.user.student_profile
+            borrowed_records = LibraryRecord.objects.filter(student=profile).order_by('-issue_date')
+            my_reserve_requests = ReserveRequest.objects.filter(student=profile).order_by('-request_date')
+        except StudentProfile.DoesNotExist:
+            pass
+    elif request.user.role == User.IS_TEACHER:
+        try:
+            profile = request.user.teacher_profile
+            borrowed_records = LibraryRecord.objects.filter(teacher=profile).order_by('-issue_date')
+            if hasattr(ReserveRequest, 'teacher'):
+                my_reserve_requests = ReserveRequest.objects.filter(teacher=profile).order_by('-request_date')
+        except TeacherProfile.DoesNotExist:
+            pass
+
+    # Catalog split based on is_reserve status
+    general_books = Book.objects.filter(is_reserve=False).order_by('title')
+    reserve_books = list(Book.objects.filter(is_reserve=True).order_by('title'))
+
+    # Determine user filter for LibraryRecord lookup
+    rec_filter = {'student': profile} if request.user.role == User.IS_STUDENT else {'teacher': profile}
+
+    # Map only active/blocking requests to reserve books
+    active_requests_map = {}
+    for req in my_reserve_requests:
+        if req.book_id in active_requests_map:
+            continue  # Already captured the most recent request for this book
+        
+        if req.status in ['PENDING', 'APPROVED']:
+            active_requests_map[req.book_id] = req
+        elif req.status == 'FULFILLED':
+            # Only block new applications if an active LibraryRecord with status='ISSUED' still exists
+            still_issued = LibraryRecord.objects.filter(
+                book=req.book,
+                status='ISSUED',
+                **rec_filter
+            ).exists()
+            
+            if still_issued:
+                active_requests_map[req.book_id] = req
+
+    # Attach active request (if any) to each reserve book instance
+    for book in reserve_books:
+        book.user_request = active_requests_map.get(book.id)
+
+    context = {
+        'borrowed_records': borrowed_records,
+        'general_books': general_books,
+        'reserve_books': reserve_books,
+        'my_reserve_requests': my_reserve_requests,
+        'profile': profile,
+        'role': request.user.role,
+    }
+    return render(request, 'attendance/library_reader.html', context)
 
 @login_required
 @transaction.atomic
 def upload_books(request):
     """
-    Standalone page for librarians to add new books to the catalog.
+    Standalone view for librarians to add new books to the catalog.
     GET  -> display the upload form.
     POST -> process new book entry.
     """
@@ -434,11 +604,14 @@ def upload_books(request):
         author = request.POST.get('author', '').strip()
         isbn = request.POST.get('isbn', '').strip()
         total_copies_str = request.POST.get('total_copies', '1')
-        department_id = request.POST.get('department')  # new
+        department_id = request.POST.get('department')
+        
+        # 1. Read the checkbox value from POST ('true', 'on', or '1')
+        is_reserve = request.POST.get('is_reserve') in ['true', 'on', '1']
 
         if not title:
             messages.error(request, "Book title is required.")
-            return redirect('attendance:upload_books')
+            return redirect(request.META.get('HTTP_REFERER', 'attendance:manage_library'))
 
         try:
             total_copies = int(total_copies_str)
@@ -470,68 +643,38 @@ def upload_books(request):
                 book.author = author
             if isbn:
                 book.isbn = isbn
-            # Update department if a valid one was provided, otherwise keep existing
             if department:
                 book.department = department
+            
+            # 2. Update reserve status on existing book
+            book.is_reserve = is_reserve
             book.save()
+            
             messages.success(
                 request,
                 f"Updated stock for '{book.title}'. Added {total_copies} more copy/copies."
             )
         else:
-            # Create new book with optional department
+            # 3. Pass is_reserve when creating new book
             Book.objects.create(
                 title=title,
                 author=author,
                 isbn=isbn if isbn else None,
                 total_copies=total_copies,
                 available_copies=total_copies,
-                department=department  # may be None
+                department=department,
+                is_reserve=is_reserve
             )
             messages.success(request, f"Successfully cataloged '{title}'.")
 
-        return redirect('attendance:upload_books')
+        # Redirect back to the originating page (Manage Library or standalone upload page)
+        return redirect(request.META.get('HTTP_REFERER', 'attendance:manage_library'))
 
     # GET – render the standalone form with department choices
     departments = Department.objects.all().order_by('name')
     return render(request, 'attendance/upload_books.html', {'departments': departments})
 
 
-
-
-@login_required
-def library_reader_dashboard(request):
-    """
-    For students and teachers: show their borrowed books + a searchable book catalog.
-    """
-    if request.user.role not in [User.IS_STUDENT, User.IS_TEACHER]:
-        return render(request, 'errors/403.html', status=403)
-
-    profile = None
-    borrowed_records = []
-
-    if request.user.role == User.IS_STUDENT:
-        try:
-            profile = request.user.student_profile
-            borrowed_records = LibraryRecord.objects.filter(student=profile).order_by('-issue_date')
-        except StudentProfile.DoesNotExist:
-            pass
-    elif request.user.role == User.IS_TEACHER:
-        try:
-            profile = request.user.teacher_profile
-            borrowed_records = LibraryRecord.objects.filter(teacher=profile).order_by('-issue_date')
-        except TeacherProfile.DoesNotExist:
-            pass
-
-    all_books = Book.objects.all().order_by('title')
-
-    context = {
-        'borrowed_records': borrowed_records,
-        'all_books': all_books,
-        'profile': profile,
-        'role': request.user.role,
-    }
-    return render(request, 'attendance/library_reader.html', context)
 
 
 
@@ -632,27 +775,106 @@ def issue_book(request):
 @transaction.atomic
 def return_book(request, record_id):
     if request.user.role not in [User.IS_LIBRARIAN, User.IS_ADMIN]:
-        return HttpResponseForbidden("Access Blocked.")
+        return render(request, 'errors/403.html', status=403)
         
     record = get_object_or_404(LibraryRecord, id=record_id)
-    if record.status == 'ISSUED':
-        record.status = 'RETURNED'
-        record.return_date = timezone.now().date()
-        record.save()
-        
-        if record.book:
-            record.book.available_copies = min(
-                record.book.available_copies + 1, 
-                record.book.total_copies
-            )
-            record.book.save()
-            
-        messages.success(request, f"Returned: '{record.book.title if record.book else 'Unknown'}' successfully.")
-    else:
-        messages.info(request, "This resource record is already marked as returned.")
-        
+    
+    if record.status == 'RETURNED':
+        messages.info(request, "This record is already marked as returned.")
+        return redirect('attendance:manage_library')
+
+    # 1. Update Library Record
+    record.status = 'RETURNED'
+    record.return_date = timezone.now().date()
+    record.save()
+
+    # 2. Increment Available Copies
+    book = record.book
+    book.available_copies += 1
+    book.save()
+
+    # 3. Complete/Reset associated Reserve Request
+    if record.student:
+        ReserveRequest.objects.filter(
+            student=record.student, 
+            book=book, 
+            status__in=['APPROVED', 'FULFILLED']
+        ).update(status='COMPLETED')
+    elif record.teacher:
+        ReserveRequest.objects.filter(
+            teacher=record.teacher, 
+            book=book, 
+            status__in=['APPROVED', 'FULFILLED']
+        ).update(status='COMPLETED')
+
+    borrower_name = record.student.name if record.student else record.teacher.name
+    messages.success(request, f"Successfully returned '{book.title}' for {borrower_name}. Reserve status reset!")
     return redirect('attendance:manage_library')
 
+@login_required
+def apply_reserve_book(request, book_id):
+    if request.user.role not in [User.IS_STUDENT, User.IS_TEACHER]:
+        return render(request, 'errors/403.html', status=403)
+    
+    book = get_object_or_404(Book, id=book_id, is_reserve=True)
+    purpose_notes = request.POST.get('purpose_notes', '')
+
+    # Determine profile
+    profile = None
+    if request.user.role == User.IS_STUDENT:
+        try:
+            profile = request.user.student_profile
+        except StudentProfile.DoesNotExist:
+            messages.error(request, "Student profile not found.")
+            return redirect('attendance:library_reader_dashboard')
+    else:
+        try:
+            profile = request.user.teacher_profile
+        except TeacherProfile.DoesNotExist:
+            messages.error(request, "Teacher profile not found.")
+            return redirect('attendance:library_reader_dashboard')
+
+    # Build filter kwargs based on role
+    user_filter = {'student': profile} if request.user.role == User.IS_STUDENT else {'teacher': profile}
+
+    # 1. Block if there is already a PENDING or APPROVED request for this book
+    active_request_exists = ReserveRequest.objects.filter(
+        book=book,
+        status__in=['PENDING', 'APPROVED'],
+        **user_filter
+    ).exists()
+
+    if active_request_exists:
+        messages.error(request, "You already have an active or pending request for this reserve book.")
+        return redirect('attendance:library_reader_dashboard')
+
+    # 2. Block if the user currently holds an active ISSUED record for this book
+    currently_issued = LibraryRecord.objects.filter(
+        book=book,
+        status='ISSUED',
+        **user_filter
+    ).exists()
+
+    if currently_issued:
+        messages.error(request, "You currently have this book checked out. It must be returned first.")
+        return redirect('attendance:library_reader_dashboard')
+
+    # 3. Check stock availability
+    if book.available_copies < 1:
+        messages.error(request, "Sorry, this reserve item is currently out of stock.")
+        return redirect('attendance:library_reader_dashboard')
+
+    # Create a fresh application entry (allows re-application after return/completion)
+    request_data = {
+        'book': book,
+        'purpose_notes': purpose_notes,
+        'status': 'PENDING'
+    }
+    request_data.update(user_filter)
+
+    ReserveRequest.objects.create(**request_data)
+    messages.success(request, f"Successfully submitted reserve application for '{book.title}'.")
+    return redirect('attendance:library_reader_dashboard')
 
 @login_required
 @transaction.atomic

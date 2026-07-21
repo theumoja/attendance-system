@@ -174,3 +174,62 @@ class DisciplinaryRecordAdmin(admin.ModelAdmin):
     list_display = ('subject', 'student', 'severity', 'date_logged', 'reported_by', 'term')
     list_filter = ('severity', 'date_logged', 'term')
     search_fields = ('subject', 'student__name', 'student__reg_number', 'details')
+
+
+
+from django.contrib import admin
+from django.contrib import messages
+from .models import ReserveRequest, Book
+
+
+@admin.register(ReserveRequest)
+class ReserveRequestAdmin(admin.ModelAdmin):
+    # Columns displayed in the admin list view
+    list_display = ('book', 'get_applicant', 'status', 'request_date', 'purpose_notes')
+    
+    # Filters available on the right sidebar
+    list_filter = ('status', 'request_date')
+    
+    # Search bar across book titles, applicant names, and notes
+    search_fields = (
+        'book__title', 
+        'student__user__first_name', 
+        'student__user__last_name',
+        'purpose_notes'
+    )
+    
+    # Prevent manual tampering of creation timestamps
+    readonly_fields = ('request_date',)
+    
+    # Default ordering (newest requests first)
+    ordering = ('-request_date',)
+
+    # Custom column to show Student or Teacher applicant
+    @admin.display(description='Applicant')
+    def get_applicant(self, obj):
+        if hasattr(obj, 'teacher') and obj.teacher:
+            return f"{obj.teacher} (Teacher)"
+        elif obj.student:
+            return f"{obj.student} (Student)"
+        return "N/A"
+
+    # Custom Admin Bulk Actions for quick approval/rejection
+    actions = ['approve_requests', 'reject_requests']
+
+    @admin.action(description='Mark selected reserve requests as APPROVED')
+    def approve_requests(self, request, queryset):
+        updated = queryset.update(status='APPROVED')
+        self.message_user(
+            request, 
+            f"Successfully marked {updated} request(s) as Approved.", 
+            messages.SUCCESS
+        )
+
+    @admin.action(description='Mark selected reserve requests as REJECTED')
+    def reject_requests(self, request, queryset):
+        updated = queryset.update(status='REJECTED')
+        self.message_user(
+            request, 
+            f"Successfully marked {updated} request(s) as Rejected.", 
+            messages.WARNING
+        )

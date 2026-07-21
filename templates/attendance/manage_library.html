@@ -109,7 +109,7 @@
     .tab-btn {
         background: none;
         border: none;
-        padding: 0.7rem 1.5rem;
+        padding: 0.7rem 1.2rem;
         font-weight: 600;
         color: #64748b;
         cursor: pointer;
@@ -117,6 +117,9 @@
         transition: color 0.2s, border-color 0.2s;
         font-size: 0.9rem;
         border-radius: 8px 8px 0 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
     .tab-btn:hover {
         color: #0f172a;
@@ -144,7 +147,7 @@
         overflow-x: auto;
         border-radius: 12px;
         border: 1px solid #f1f5f9;
-        max-height: 420px;          /* default limited height */
+        max-height: 420px;
         overflow-y: auto;
         transition: max-height 0.3s ease;
     }
@@ -187,13 +190,9 @@
         border-bottom: none;
     }
 
-    /* Overdue row styling */
     .table tbody tr.overdue-row {
         background-color: #fef2f2;
         border-left: 4px solid #ef4444;
-    }
-    .table tbody tr.overdue-row:hover {
-        background-color: #fee2e2;
     }
 
     /* ----- Badges ----- */
@@ -226,10 +225,10 @@
         background: #e0f2fe;
         color: #0369a1;
     }
-    .badge-overdue {
-        background: #fee2e2;
-        color: #b91c1c;
-        font-weight: 700;
+    .badge-reserve {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fcd34d;
     }
 
     /* ----- Buttons ----- */
@@ -258,7 +257,6 @@
     .btn-success:hover {
         background: #059669;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px -2px rgba(16, 185, 129, 0.3);
     }
     .btn-primary {
         background: #2c6e6b;
@@ -267,25 +265,13 @@
     .btn-primary:hover {
         background: #1e4f4d;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px -2px rgba(44, 110, 107, 0.3);
     }
-    .btn-info {
-        background: #0ea5e9;
+    .btn-danger {
+        background: #ef4444;
         color: #fff;
     }
-    .btn-info:hover {
-        background: #0284c7;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px -2px rgba(14, 165, 233, 0.3);
-    }
-    .btn-warning {
-        background: #f59e0b;
-        color: #fff;
-    }
-    .btn-warning:hover {
-        background: #d97706;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px -2px rgba(245, 158, 11, 0.3);
+    .btn-danger:hover {
+        background: #dc2626;
     }
     .btn-outline {
         background: transparent;
@@ -297,7 +283,7 @@
         border-color: #cbd5e1;
     }
 
-    /* ----- Book selector (enhanced) ----- */
+    /* ----- Book Selector ----- */
     .book-selector {
         display: flex;
         gap: 0.75rem;
@@ -328,42 +314,6 @@
         padding: 0.5rem 1rem 0.5rem 2.5rem;
         font-size: 0.9rem;
         background: #ffffff;
-        transition: border-color 0.2s;
-    }
-    .book-selector .search-wrap input:focus {
-        border-color: #2c6e6b;
-        box-shadow: 0 0 0 3px rgba(44, 110, 107, 0.1);
-        outline: none;
-    }
-    .book-selector .qty-wrap {
-        flex: 0 0 100px;
-    }
-    .book-selector .qty-wrap input {
-        width: 100%;
-        text-align: center;
-    }
-    .book-selector .add-btn {
-        flex: 0 0 auto;
-        padding: 0.5rem 1.2rem;
-        background: #2c6e6b;
-        color: #fff;
-        border: none;
-        border-radius: 50px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
-    }
-    .book-selector .add-btn:hover {
-        background: #1e4f4d;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px -2px rgba(44, 110, 107, 0.3);
-    }
-    .book-selector .add-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
     }
 
     .book-results {
@@ -382,25 +332,10 @@
         align-items: center;
         border-bottom: 1px solid #f1f5f9;
         cursor: pointer;
-        transition: background 0.1s;
         font-size: 0.9rem;
     }
     .book-results .result-item:hover {
         background: #f1f5f9;
-    }
-    .book-results .result-item:last-child {
-        border-bottom: none;
-    }
-    .book-results .result-item .stock {
-        font-size: 0.75rem;
-        color: #64748b;
-        font-weight: 500;
-    }
-    .book-results .result-item .stock .available {
-        color: #10b981;
-    }
-    .book-results .result-item .stock .out {
-        color: #ef4444;
     }
 
     .selected-books {
@@ -411,54 +346,8 @@
         background: #fafbfc;
         min-height: 60px;
     }
-    .selected-books .empty-msg {
-        color: #94a3b8;
-        font-size: 0.9rem;
-        text-align: center;
-        padding: 0.5rem 0;
-    }
-    .selected-books table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-    }
-    .selected-books table th {
-        text-align: left;
-        font-weight: 600;
-        color: #475569;
-        padding: 0.4rem 0.5rem;
-        border-bottom: 2px solid #e2e8f0;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }
-    .selected-books table td {
-        padding: 0.5rem 0.5rem;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-    }
-    .selected-books table tr:last-child td {
-        border-bottom: none;
-    }
-    .selected-books .remove-btn {
-        background: none;
-        border: none;
-        color: #ef4444;
-        cursor: pointer;
-        font-size: 1rem;
-        padding: 0.2rem 0.4rem;
-        border-radius: 4px;
-        transition: background 0.1s;
-    }
-    .selected-books .remove-btn:hover {
-        background: #fee2e2;
-    }
 
-    #selectedBooksContainer {
-        display: none;
-    }
-
-    /* ----- Forms (Professional) ----- */
+    /* ----- Form Components ----- */
     .form-group {
         margin-bottom: 1.25rem;
     }
@@ -469,11 +358,6 @@
         color: #1e293b;
         margin-bottom: 0.3rem;
     }
-    .form-group label i {
-        margin-right: 0.3rem;
-        color: #2c6e6b;
-        width: 1.2rem;
-    }
     .form-control {
         width: 100%;
         padding: 0.6rem 1rem;
@@ -481,97 +365,16 @@
         border-radius: 10px;
         font-size: 0.9rem;
         background: #fafbfc;
-        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-        color: #0f172a;
     }
     .form-control:focus {
         border-color: #2c6e6b;
-        box-shadow: 0 0 0 3px rgba(44, 110, 107, 0.12);
         background: #ffffff;
         outline: none;
     }
-    .form-control::placeholder {
-        color: #94a3b8;
-    }
-    select.form-control {
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364758b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 1rem center;
-        background-size: 0.8rem;
-        padding-right: 2.5rem;
-    }
-    select.form-control[multiple] {
-        background-image: none;
-        padding: 0.5rem;
-        min-height: 140px;
-    }
-    select.form-control[multiple] option {
-        padding: 0.4rem 0.6rem;
-        border-radius: 4px;
-    }
-    select.form-control[multiple] option:checked {
-        background: #2c6e6b;
-        color: #fff;
-    }
-    .form-text {
-        display: block;
-        margin-top: 0.25rem;
-        font-size: 0.75rem;
-        color: #94a3b8;
-    }
-    .form-text kbd {
-        background: #f1f5f9;
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        color: #0f172a;
-    }
-
-    input[type="number"].form-control {
-        -moz-appearance: textfield;
-    }
-    input[type="number"].form-control::-webkit-outer-spin-button,
-    input[type="number"].form-control::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1rem;
-    }
-    @media (max-width: 576px) {
-        .form-row {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* ----- Sidebar cards enhancements ----- */
-    .sidebar-card .card-title {
-        border-bottom-color: #e2e8f0;
-    }
-    .sidebar-card .btn {
-        width: 100%;
-        justify-content: center;
-        margin-top: 0.5rem;
-    }
-
-    .quick-issue-card {
-        background: linear-gradient(145deg, #ffffff, #fafbfc);
-    }
-    .quick-issue-card .card-title i {
-        color: #10b981;
-    }
-
-    .add-book-card {
-        background: #ffffff;
-        border-left: 4px solid #10b981;
-    }
-    .add-book-card .card-title {
-        color: #10b981;
     }
 
     .empty-state {
@@ -585,12 +388,7 @@
         margin-bottom: 0.75rem;
         color: #cbd5e1;
     }
-    .empty-state p {
-        margin: 0;
-        font-size: 0.95rem;
-    }
 
-    /* ----- Summary stats ----- */
     .stats-bar {
         display: flex;
         flex-wrap: wrap;
@@ -615,63 +413,11 @@
         font-weight: 700;
         color: #0f172a;
     }
-    .stats-bar .stat-item .value.available {
-        color: #10b981;
-    }
-    .stats-bar .stat-item .value.out-of-stock {
-        color: #ef4444;
-    }
 
-    @media (max-width: 768px) {
-        .card {
-            padding: 1.25rem;
-        }
-        .toolbar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .search-bar {
-            max-width: 100%;
-        }
-        .filter-group {
-            flex-wrap: wrap;
-        }
-        .filter-group .form-control-sm {
-            min-width: 100px;
-        }
-        .tab-btn {
-            font-size: 0.8rem;
-            padding: 0.5rem 1rem;
-        }
-        .table td, .table th {
-            padding: 0.6rem 0.8rem;
-            font-size: 0.8rem;
-        }
-        .btn {
-            font-size: 0.8rem;
-            padding: 0.4rem 1rem;
-        }
-        .book-selector {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .book-selector .qty-wrap {
-            flex: 1;
-        }
-        .stats-bar {
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-    }
-
-    /* Scrollable table with toggle button */
     .table-toggle-wrapper {
         display: flex;
         justify-content: flex-end;
         margin-top: 0.5rem;
-    }
-    .table-toggle-wrapper .btn {
-        font-size: 0.8rem;
     }
 </style>
 
@@ -680,38 +426,45 @@
     <div>
         <!-- Tabs -->
         <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab('transactions-tab')">
-                <i class="fas fa-exchange-alt"></i> Issue & Return Logs
+            <button class="tab-btn active" onclick="switchTab('transactions-tab', this)">
+                <i class="fas fa-exchange-alt"></i> Issued Books
             </button>
-            <button class="tab-btn" onclick="switchTab('catalog-tab')">
-                <i class="fas fa-book"></i> Institutional Book Catalog
+            <button class="tab-btn" onclick="switchTab('catalog-tab', this)">
+                <i class="fas fa-book"></i> Book Catalog
+            </button>
+            <button class="tab-btn" onclick="switchTab('reserve-tab', this)">
+                <i class="fas fa-bookmark"></i> Reserve Requests
+                {% if pending_reserve_count > 0 %}
+                    <span class="badge badge-warning">{{ pending_reserve_count }}</span>
+                {% endif %}
             </button>
         </div>
 
-        <!-- Tab: Transactions -->
+        <!-- TAB 1: Transactions (Split into Student and Teacher Tables) -->
         <div id="transactions-tab" class="tab-pane active">
+            
+            <!-- TABLE 1: STUDENT ISSUED BOOKS -->
             <div class="card">
                 <div class="toolbar">
                     <h2 class="card-title" style="margin-bottom:0;">
-                        <i class="fas fa-history"></i> Outstanding Issues
+                        <i class="fas fa-user-graduate"></i> Student Issued Books
                     </h2>
-                    <!-- Search -->
-                    <input type="text" id="libSearch" class="search-bar" placeholder="Search logs by borrower or book...">
+                    <input type="text" id="studentSearch" class="search-bar" placeholder="Search student name, reg no, or book...">
                 </div>
-                <!-- ========== FILTER BAR (enhanced with department) ========== -->
+
                 <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
                     <div class="filter-group">
-                        <label for="statusFilter"><i class="fas fa-filter"></i> Status</label>
-                        <select id="statusFilter" class="form-control-sm">
+                        <label for="studentStatusFilter"><i class="fas fa-filter"></i> Status</label>
+                        <select id="studentStatusFilter" class="form-control-sm">
                             <option value="all">All</option>
-                            <option value="issued">Issued</option>
-                            <option value="returned">Returned</option>
-                            <option value="overdue">Overdue</option>
+                            <option value="ISSUED">Issued</option>
+                            <option value="RETURNED">Returned</option>
+                            <option value="OVERDUE">Overdue</option>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label for="libDeptFilter"><i class="fas fa-building"></i> Department</label>
-                        <select id="libDeptFilter" class="form-control-sm">
+                        <label for="studentDeptFilter"><i class="fas fa-building"></i> Department</label>
+                        <select id="studentDeptFilter" class="form-control-sm">
                             <option value="all">All Departments</option>
                             {% for dept in departments %}
                                 <option value="{{ dept.id }}">{{ dept.name }}</option>
@@ -719,35 +472,34 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label for="dateFrom"><i class="fas fa-calendar-alt"></i> From</label>
-                        <input type="date" id="dateFrom" class="form-control-sm">
+                        <label for="studentDateFrom"><i class="fas fa-calendar-alt"></i> From</label>
+                        <input type="date" id="studentDateFrom" class="form-control-sm">
                     </div>
                     <div class="filter-group">
-                        <label for="dateTo">To</label>
-                        <input type="date" id="dateTo" class="form-control-sm">
+                        <label for="studentDateTo">To</label>
+                        <input type="date" id="studentDateTo" class="form-control-sm">
                     </div>
-                    <button class="btn btn-sm btn-primary" id="clearFiltersBtn" style="background:#e2e8f0; color:#475569;">
+                    <button class="btn btn-sm btn-primary" id="clearStudentFiltersBtn" style="background:#e2e8f0; color:#475569;">
                         <i class="fas fa-times"></i> Clear Filters
                     </button>
                     <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
-                        Showing <strong id="visibleCount">0</strong> of <strong id="totalCount">0</strong> records
+                        Showing <strong id="studentVisibleCount">0</strong> of <strong id="studentTotalCount">0</strong> records
                     </span>
                 </div>
 
-                <!-- Stats summary for transactions (optional) -->
-                <div class="stats-bar" id="transStats">
-                    <span class="stat-item"><span class="label">Total Transactions:</span> <span class="value" id="transTotalCount">0</span></span>
-                    <span class="stat-item"><span class="label">Issued:</span> <span class="value" id="transIssuedCount">0</span></span>
-                    <span class="stat-item"><span class="label">Returned:</span> <span class="value" id="transReturnedCount">0</span></span>
-                    <span class="stat-item"><span class="label">Overdue:</span> <span class="value" style="color:#dc2626;" id="transOverdueCount">0</span></span>
+                <div class="stats-bar" id="studentStats">
+                    <span class="stat-item"><span class="label">Total Records:</span> <span class="value" id="studentTotalStat">0</span></span>
+                    <span class="stat-item"><span class="label">Issued:</span> <span class="value" id="studentIssuedStat">0</span></span>
+                    <span class="stat-item"><span class="label">Returned:</span> <span class="value" id="studentReturnedStat">0</span></span>
+                    <span class="stat-item"><span class="label">Overdue:</span> <span class="value" style="color:#dc2626;" id="studentOverdueStat">0</span></span>
                 </div>
 
-                <div class="table-responsive" id="transTableWrapper">
-                    <table class="table" id="libTable">
+                <div class="table-responsive" id="studentTableWrapper">
+                    <table class="table" id="studentLibTable">
                         <thead>
                             <tr>
                                 <th>Date Issued</th>
-                                <th>Borrower</th>
+                                <th>Student Borrower</th>
                                 <th>Book Title</th>
                                 <th>Department</th>
                                 <th>Due Date</th>
@@ -755,24 +507,20 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody id="libTableBody">
-                            {% for record in records %}
+                        <tbody id="studentTableBody">
+                            {% for record in issued_records %}
+                            {% if record.student %}
                             <tr 
                                 data-issue-date="{{ record.issue_date|date:'Y-m-d' }}"
                                 data-due-date="{{ record.due_date|date:'Y-m-d' }}"
                                 data-status="{{ record.status }}"
-                                data-borrower="{{ record.student.name|lower }}{% if record.teacher %}{{ record.teacher.name|lower }}{% endif %}"
+                                data-borrower="{{ record.student.name|lower }} {{ record.student.reg_number|lower }}"
                                 data-department-id="{% if record.book.department %}{{ record.book.department.id }}{% else %}none{% endif %}"
                             >
                                 <td>{{ record.issue_date|date:"M d, Y" }}</td>
                                 <td>
-                                    {% if record.student %}
-                                        <span class="badge badge-secondary">Student</span> 
-                                        <strong>{{ record.student.name }}</strong> ({{ record.student.reg_number }})
-                                    {% elif record.teacher %}
-                                        <span class="badge badge-info">Teacher</span> 
-                                        <strong>{{ record.teacher.name }}</strong>
-                                    {% endif %}
+                                    <span class="badge badge-secondary">Student</span> 
+                                    <strong>{{ record.student.name }}</strong> ({{ record.student.reg_number }})
                                 </td>
                                 <td>{{ record.book.title }}</td>
                                 <td>{% if record.book.department %}{{ record.book.department.name }}{% else %}—{% endif %}</td>
@@ -786,52 +534,177 @@
                                 </td>
                                 <td>
                                     {% if record.status == 'ISSUED' %}
-                                        <a href="{% url 'attendance:return_book' record.id %}" class="btn btn-sm btn-success">
-                                            <i class="fas fa-undo"></i> Return
-                                        </a>
+                                        <form action="{% url 'attendance:manage_library' %}" method="POST" style="display:inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="return_book">
+                                            <input type="hidden" name="record_id" value="{{ record.id }}">
+                                            <button type="submit" class="btn btn-sm btn-success">
+                                                <i class="fas fa-undo"></i> Return
+                                            </button>
+                                        </form>
                                     {% else %}
                                         <span class="text-muted" style="font-size:0.8rem;">On {{ record.return_date|date:"M d, Y" }}</span>
                                     {% endif %}
                                 </td>
                             </tr>
+                            {% endif %}
                             {% empty %}
-                            <tr id="emptyStateRow">
+                            <tr class="empty-row">
                                 <td colspan="7">
                                     <div class="empty-state">
                                         <i class="fas fa-folder-open"></i>
-                                        <p>No transaction logs found in the archives.</p>
+                                        <p>No student transaction logs found in archives.</p>
                                     </div>
                                 </td>
                             </tr>
                             {% endfor %}
-                            <!-- hidden no-match row -->
-                            <tr id="noMatchRow" style="display:none;">
-                                <td colspan="7" style="text-align:center; padding:2rem; color:#94a3b8;">
-                                    <i class="fas fa-search" style="display:block; font-size:2rem; margin-bottom:0.5rem;"></i>
-                                    No transactions match your filters.
-                                </td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
                 <div class="table-toggle-wrapper">
-                    <button class="btn btn-sm btn-outline" id="transToggleBtn" onclick="toggleTableHeight('transTableWrapper')">
+                    <button class="btn btn-sm btn-outline" onclick="toggleTableHeight('studentTableWrapper')">
                         <i class="fas fa-expand"></i> Show All
                     </button>
                 </div>
             </div>
+
+            <!-- TABLE 2: TEACHER ISSUED BOOKS -->
+            <div class="card">
+                <div class="toolbar">
+                    <h2 class="card-title" style="margin-bottom:0;">
+                        <i class="fas fa-chalkboard-teacher"></i> Teacher Issued Books
+                    </h2>
+                    <input type="text" id="teacherSearch" class="search-bar" placeholder="Search teacher name or book title...">
+                </div>
+
+                <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
+                    <div class="filter-group">
+                        <label for="teacherStatusFilter"><i class="fas fa-filter"></i> Status</label>
+                        <select id="teacherStatusFilter" class="form-control-sm">
+                            <option value="all">All</option>
+                            <option value="ISSUED">Issued</option>
+                            <option value="RETURNED">Returned</option>
+                            <option value="OVERDUE">Overdue</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="teacherDeptFilter"><i class="fas fa-building"></i> Department</label>
+                        <select id="teacherDeptFilter" class="form-control-sm">
+                            <option value="all">All Departments</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="teacherDateFrom"><i class="fas fa-calendar-alt"></i> From</label>
+                        <input type="date" id="teacherDateFrom" class="form-control-sm">
+                    </div>
+                    <div class="filter-group">
+                        <label for="teacherDateTo">To</label>
+                        <input type="date" id="teacherDateTo" class="form-control-sm">
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="clearTeacherFiltersBtn" style="background:#e2e8f0; color:#475569;">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
+                        Showing <strong id="teacherVisibleCount">0</strong> of <strong id="teacherTotalCount">0</strong> records
+                    </span>
+                </div>
+
+                <div class="stats-bar" id="teacherStats">
+                    <span class="stat-item"><span class="label">Total Records:</span> <span class="value" id="teacherTotalStat">0</span></span>
+                    <span class="stat-item"><span class="label">Issued:</span> <span class="value" id="teacherIssuedStat">0</span></span>
+                    <span class="stat-item"><span class="label">Returned:</span> <span class="value" id="teacherReturnedStat">0</span></span>
+                    <span class="stat-item"><span class="label">Overdue:</span> <span class="value" style="color:#dc2626;" id="teacherOverdueStat">0</span></span>
+                </div>
+
+                <div class="table-responsive" id="teacherTableWrapper">
+                    <table class="table" id="teacherLibTable">
+                        <thead>
+                            <tr>
+                                <th>Date Issued</th>
+                                <th>Teacher Borrower</th>
+                                <th>Book Title</th>
+                                <th>Department</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacherTableBody">
+                            {% for record in issued_records %}
+                            {% if record.teacher %}
+                            <tr 
+                                data-issue-date="{{ record.issue_date|date:'Y-m-d' }}"
+                                data-due-date="{{ record.due_date|date:'Y-m-d' }}"
+                                data-status="{{ record.status }}"
+                                data-borrower="{{ record.teacher.name|lower }}"
+                                data-department-id="{% if record.book.department %}{{ record.book.department.id }}{% else %}none{% endif %}"
+                            >
+                                <td>{{ record.issue_date|date:"M d, Y" }}</td>
+                                <td>
+                                    <span class="badge badge-info">Teacher</span> 
+                                    <strong>{{ record.teacher.name }}</strong>
+                                </td>
+                                <td>{{ record.book.title }}</td>
+                                <td>{% if record.book.department %}{{ record.book.department.name }}{% else %}—{% endif %}</td>
+                                <td>{{ record.due_date|date:"M d, Y" }}</td>
+                                <td>
+                                    {% if record.status == 'ISSUED' %}
+                                        <span class="badge badge-warning">Issued</span>
+                                    {% else %}
+                                        <span class="badge badge-success">Returned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if record.status == 'ISSUED' %}
+                                        <form action="{% url 'attendance:manage_library' %}" method="POST" style="display:inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="return_book">
+                                            <input type="hidden" name="record_id" value="{{ record.id }}">
+                                            <button type="submit" class="btn btn-sm btn-success">
+                                                <i class="fas fa-undo"></i> Return
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-muted" style="font-size:0.8rem;">On {{ record.return_date|date:"M d, Y" }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% empty %}
+                            <tr class="empty-row">
+                                <td colspan="7">
+                                    <div class="empty-state">
+                                        <i class="fas fa-folder-open"></i>
+                                        <p>No teacher transaction logs found in archives.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-toggle-wrapper">
+                    <button class="btn btn-sm btn-outline" onclick="toggleTableHeight('teacherTableWrapper')">
+                        <i class="fas fa-expand"></i> Show All
+                    </button>
+                </div>
+            </div>
+
         </div>
 
-        <!-- Tab: Catalog -->
+        <!-- TAB 2: Catalog -->
         <div id="catalog-tab" class="tab-pane">
             <div class="card">
                 <div class="toolbar">
                     <h2 class="card-title" style="margin-bottom:0;">
-                        <i class="fas fa-warehouse"></i> General Inventory Catalog
+                        <i class="fas fa-warehouse"></i> Inventory Catalog
                     </h2>
                     <input type="text" id="catalogSearch" class="search-bar" placeholder="Search title, author or ISBN...">
                 </div>
-                <!-- ========== CATALOG FILTERS (department + availability) ========== -->
+
                 <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
                     <div class="filter-group">
                         <label for="catalogDeptFilter"><i class="fas fa-building"></i> Department</label>
@@ -843,9 +716,17 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label for="catalogCollectionFilter"><i class="fas fa-bookmark"></i> Collection</label>
+                        <select id="catalogCollectionFilter" class="form-control-sm">
+                            <option value="all">All Collections</option>
+                            <option value="general">General Catalog</option>
+                            <option value="reserve">Reserve Collection</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="catalogAvailFilter"><i class="fas fa-boxes"></i> Availability</label>
                         <select id="catalogAvailFilter" class="form-control-sm">
-                            <option value="all">All</option>
+                            <option value="all">All Stock</option>
                             <option value="available">Available</option>
                             <option value="outofstock">Out of Stock</option>
                         </select>
@@ -858,12 +739,11 @@
                     </span>
                 </div>
 
-                <!-- Stats summary for catalog -->
                 <div class="stats-bar" id="catalogStats">
                     <span class="stat-item"><span class="label">Total Titles:</span> <span class="value" id="catTotalTitles">0</span></span>
                     <span class="stat-item"><span class="label">Total Copies:</span> <span class="value" id="catTotalCopies">0</span></span>
-                    <span class="stat-item"><span class="label">Available Copies:</span> <span class="value available" id="catAvailCopies">0</span></span>
-                    <span class="stat-item"><span class="label">Out of Stock Titles:</span> <span class="value out-of-stock" id="catOutOfStock">0</span></span>
+                    <span class="stat-item"><span class="label">Available Copies:</span> <span class="value" style="color:#10b981;" id="catAvailCopies">0</span></span>
+                    <span class="stat-item"><span class="label">Out of Stock:</span> <span class="value" style="color:#ef4444;" id="catOutOfStock">0</span></span>
                 </div>
 
                 <div class="table-responsive" id="catalogTableWrapper">
@@ -874,6 +754,7 @@
                                 <th>Author</th>
                                 <th>ISBN</th>
                                 <th>Department</th>
+                                <th>Type</th>
                                 <th style="text-align:center;">Available</th>
                                 <th style="text-align:center;">Total</th>
                             </tr>
@@ -881,12 +762,20 @@
                         <tbody id="catalogTableBody">
                             {% for book in books %}
                             <tr data-department-id="{% if book.department %}{{ book.department.id }}{% else %}none{% endif %}"
+                                data-is-reserve="{{ book.is_reserve|yesno:'true,false' }}"
                                 data-available="{{ book.available_copies }}"
                                 data-total="{{ book.total_copies }}">
                                 <td><strong>{{ book.title }}</strong></td>
                                 <td>{{ book.author|default:"—" }}</td>
                                 <td><code>{{ book.isbn|default:"—" }}</code></td>
                                 <td>{% if book.department %}{{ book.department.name }}{% else %}—{% endif %}</td>
+                                <td>
+                                    {% if book.is_reserve %}
+                                        <span class="badge badge-reserve">Reserve</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">General</span>
+                                    {% endif %}
+                                </td>
                                 <td style="text-align:center;">
                                     {% if book.available_copies < 1 %}
                                         <span class="badge badge-danger">Out of Stock</span>
@@ -898,10 +787,10 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <i class="fas fa-book"></i>
-                                        <p>The catalog is currently empty. Use the <strong>Upload New Books</strong> form on the right.</p>
+                                        <p>The catalog is currently empty.</p>
                                     </div>
                                 </td>
                             </tr>
@@ -916,27 +805,147 @@
                 </div>
             </div>
         </div>
+
+        <!-- TAB 3: Reserve Requests -->
+        <div id="reserve-tab" class="tab-pane">
+            <div class="card">
+                <div class="toolbar">
+                    <h2 class="card-title" style="margin-bottom:0;">
+                        <i class="fas fa-bookmark"></i> Reserve Collection Applications
+                    </h2>
+                    <input type="text" id="reserveSearch" class="search-bar" placeholder="Search applicant or reserve title...">
+                </div>
+
+                <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
+                    <div class="filter-group">
+                        <label for="reserveStatusFilter"><i class="fas fa-filter"></i> Application Status</label>
+                        <select id="reserveStatusFilter" class="form-control-sm">
+                            <option value="all">All Statuses</option>
+                            <option value="PENDING" selected>Pending Approval</option>
+                            <option value="APPROVED">Approved</option>
+                            <option value="DECLINED">Declined</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="clearReserveFiltersBtn" style="background:#e2e8f0; color:#475569;">
+                        <i class="fas fa-times"></i> Clear Filters
+                    </button>
+                    <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
+                        Showing <strong id="reserveVisibleCount">0</strong> of <strong id="reserveTotalCount">0</strong> applications
+                    </span>
+                </div>
+
+                <div class="table-responsive" id="reserveTableWrapper">
+                    <table class="table" id="reserveTable">
+                        <thead>
+                            <tr>
+                                <th>Date Requested</th>
+                                <th>Borrower</th>
+                                <th>Book Title</th>
+                                <th>Department</th>
+                                <th style="text-align:center;">Stock</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reserveTableBody">
+                            {% for req in reserve_requests %}
+                            <tr data-status="{{ req.status }}">
+                                <td>{{ req.request_date|date:"M d, Y" }}</td>
+                                <td>
+                                    {% if req.student %}
+                                        <span class="badge badge-secondary">Student</span> <strong>{{ req.student.name }}</strong>
+                                        <br><small class="text-muted">{{ req.student.reg_number }}</small>
+                                    {% elif req.teacher %}
+                                        <span class="badge badge-info">Teacher</span> <strong>{{ req.teacher.name }}</strong>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ req.book.title }}</strong>
+                                    <br><small class="text-muted">ISBN: {{ req.book.isbn|default:"—" }}</small>
+                                </td>
+                                <td>{% if req.book.department %}{{ req.book.department.name }}{% else %}—{% endif %}</td>
+                                <td style="text-align:center;">
+                                    {% if req.book.available_copies < 1 %}
+                                        <span class="badge badge-danger">0 Copies</span>
+                                    {% else %}
+                                        <span class="badge badge-success">{{ req.book.available_copies }} Avail.</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if req.status == 'PENDING' %}
+                                        <span class="badge badge-warning">Pending</span>
+                                    {% elif req.status == 'APPROVED' %}
+                                        <span class="badge badge-success">Approved</span>
+                                    {% elif req.status == 'FULFILLED' %}
+                                        <span class="badge badge-success">Fulfilled</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Declined</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if req.status == 'PENDING' %}
+                                        <div style="display:flex; gap:0.4rem;">
+                                            <form action="{% url 'attendance:manage_library' %}" method="POST" style="display:inline;">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="approve_reserve">
+                                                <input type="hidden" name="reserve_id" value="{{ req.id }}">
+                                                <button type="submit" class="btn btn-sm btn-success" {% if req.book.available_copies < 1 %}disabled title="Out of Stock"{% endif %}>
+                                                    <i class="fas fa-check"></i> Approve
+                                                </button>
+                                            </form>
+                                            <form action="{% url 'attendance:manage_library' %}" method="POST" style="display:inline;">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="reject_reserve">
+                                                <input type="hidden" name="reserve_id" value="{{ req.id }}">
+                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted" style="font-size:0.8rem;">Processed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7">
+                                    <div class="empty-state">
+                                        <i class="fas fa-bookmark"></i>
+                                        <p>No reserve requests found.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- ========== RIGHT COLUMN (unchanged) ========== -->
+    <!-- ========== RIGHT COLUMN ========== -->
     <div>
         <!-- Quick Issue Book -->
         <div class="card quick-issue-card">
             <h3 class="card-title"><i class="fas fa-plus"></i> Quick Issue Book</h3>
             <form action="{% url 'attendance:manage_library' %}" method="POST" id="quickIssueForm">
                 {% csrf_token %}
+                <input type="hidden" name="action" value="issue_books">
 
                 <div class="form-group">
                     <label for="borrower_type"><i class="fas fa-user-tag"></i> Borrower Profile</label>
-                    <select name="borrower_type" id="borrower_type" class="form-control" required>
+                    <select name="borrower_type" id="borrower_type" class="form-control" required onchange="clearSelectedOnBorrowerChange()">
                         <option value="student" selected>Student Profile</option>
                         <option value="teacher">Teacher Profile</option>
                     </select>
                 </div>
 
                 <div class="form-group" id="student-select-group">
-                    <label for="student_id"><i class="fas fa-user-graduate"></i> Search Student (Name / Reg. No.)</label>
-                    <input type="text" name="student_id" id="student_id" class="form-control" list="student_list" placeholder="Start typing...">
+                    <label for="student_id"><i class="fas fa-user-graduate"></i> Search Student (Reg. No.)</label>
+                    <input type="text" name="student_id" id="student_id" class="form-control" list="student_list" placeholder="Start typing..." oninput="clearSelectedOnBorrowerChange()">
                     <datalist id="student_list">
                         {% for student in students %}
                             <option value="{{ student.reg_number }}">{{ student.name }} ({{ student.reg_number }})</option>
@@ -946,7 +955,7 @@
 
                 <div class="form-group" id="teacher-select-group" style="display:none;">
                     <label for="teacher_id"><i class="fas fa-chalkboard-teacher"></i> Search Teacher (Name)</label>
-                    <input type="text" name="teacher_id" id="teacher_id" class="form-control" list="teacher_list" placeholder="Start typing teacher's name...">
+                    <input type="text" name="teacher_id" id="teacher_id" class="form-control" list="teacher_list" placeholder="Start typing teacher's name..." oninput="clearSelectedOnBorrowerChange()">
                     <datalist id="teacher_list">
                         {% for teacher in teachers %}
                             <option value="{{ teacher.name }}">{{ teacher.name }}</option>
@@ -954,33 +963,29 @@
                     </datalist>
                 </div>
 
-                <!-- ========== BOOK SELECTION WITH QUANTITY ========== -->
+                <!-- BOOK SELECTION WITH QUANTITY -->
                 <div class="form-group">
                     <label><i class="fas fa-book-open"></i> Select Books with Quantities</label>
                     
-                    <!-- Search + Add -->
                     <div class="book-selector">
                         <div class="search-wrap">
                             <i class="fas fa-search"></i>
                             <input type="text" id="bookSearch" placeholder="Search by title or author..." autocomplete="off">
                         </div>
-                        <div class="qty-wrap">
+                        <div class="qty-wrap" style="flex: 0 0 80px;">
                             <input type="number" id="bookQty" class="form-control" min="1" value="1" placeholder="Qty">
                         </div>
                         <button type="button" class="add-btn" id="addBookBtn" disabled>
-                            <i class="fas fa-plus"></i> Add Book
+                            <i class="fas fa-plus"></i> Add
                         </button>
                     </div>
 
-                    <!-- Results dropdown -->
                     <div class="book-results" id="bookResults" style="display:none;"></div>
 
-                    <!-- Selected books list -->
                     <div class="selected-books" id="selectedBooks">
-                        <div class="empty-msg"><i class="fas fa-inbox"></i> No books selected yet. Search and add above.</div>
+                        <div class="empty-msg"><i class="fas fa-inbox"></i> No books selected yet.</div>
                     </div>
 
-                    <!-- Hidden container for submitted data -->
                     <div id="selectedBooksContainer"></div>
                 </div>
 
@@ -993,11 +998,6 @@
                     <i class="fas fa-check-circle"></i> Commit Issuance
                 </button>
             </form>
-            <p style="margin-top:1rem; text-align:center; font-size:0.85rem;">
-                <a href="{% url 'attendance:issue_book' %}" style="color:#2c6e6b; font-weight:600;">
-                    <i class="fas fa-external-link-alt"></i> Open full‑page form →
-                </a>
-            </p>
         </div>
 
         <!-- Upload New Books -->
@@ -1014,11 +1014,11 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="new_author"><i class="fas fa-user-edit"></i> Author</label>
-                        <input type="text" name="author" id="new_author" class="form-control" placeholder="e.g., Cormen, Leiserson">
+                        <input type="text" name="author" id="new_author" class="form-control" placeholder="e.g., Cormen">
                     </div>
                     <div class="form-group">
                         <label for="new_isbn"><i class="fas fa-barcode"></i> ISBN</label>
-                        <input type="text" name="isbn" id="new_isbn" class="form-control" placeholder="978-0262033848">
+                        <input type="text" name="isbn" id="new_isbn" class="form-control" placeholder="978-0262046305">
                     </div>
                 </div>
 
@@ -1027,7 +1027,6 @@
                     <input type="number" name="total_copies" id="new_copies" class="form-control" min="1" value="1" required>
                 </div>
 
-                <!-- ===== NEW: Department dropdown ===== -->
                 <div class="form-group">
                     <label for="id_department"><i class="fas fa-building"></i> Department (optional)</label>
                     <select name="department" id="id_department" class="form-control">
@@ -1036,7 +1035,14 @@
                             <option value="{{ dept.id }}">{{ dept.name }}</option>
                         {% endfor %}
                     </select>
-                    <small class="form-text text-muted">If the book is associated with a specific academic department, you may choose it here.</small>
+                </div>
+
+                <!-- Reserve Toggle -->
+                <div class="form-group" style="margin-top:0.5rem;">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" name="is_reserve" value="true" style="width:16px; height:16px;">
+                        <span>Mark as <strong>Reserve Collection</strong> (Restricted Access)</span>
+                    </label>
                 </div>
 
                 <button type="submit" class="btn btn-success" style="width:100%;">
@@ -1048,7 +1054,16 @@
 </div>
 
 <script>
+    // Global reset function triggered on borrower modification
+    function clearSelectedOnBorrowerChange() {
+        if (typeof window.resetSelectedBooks === 'function') {
+            window.resetSelectedBooks();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        const todayStr = new Date().toISOString().split('T')[0];
+
         // ----- Borrower type toggle -----
         const typeSelect = document.getElementById('borrower_type');
         const sGroup = document.getElementById('student-select-group');
@@ -1076,7 +1091,7 @@
             toggleInputs();
         }
 
-        // ----- Book data from Django -----
+        // ----- Book & Reserve data from Django -----
         const booksData = [
             {% for book in books %}
             {
@@ -1084,40 +1099,53 @@
                 title: "{{ book.title|escapejs }}",
                 author: "{{ book.author|default:''|escapejs }}",
                 available: {{ book.available_copies }},
-                total: {{ book.total_copies }}
+                total: {{ book.total_copies }},
+                is_reserve: {% if book.is_reserve %}true{% else %}false{% endif %}
             }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];
 
-        // ----- DOM refs for book selector -----
+        const approvedReserves = [
+            {% for req in reserve_requests %}
+            {% if req.status == 'APPROVED' %}
+            {
+                book_id: {{ req.book.id }},
+                student_reg: "{{ req.student.reg_number|default:''|escapejs }}",
+                teacher_name: "{{ req.teacher.name|default:''|escapejs }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endif %}
+            {% endfor %}
+        ];
+
+        // ----- Quick Issue selector logic -----
         const searchInput = document.getElementById('bookSearch');
         const qtyInput = document.getElementById('bookQty');
         const addBtn = document.getElementById('addBookBtn');
         const resultsDiv = document.getElementById('bookResults');
         const selectedContainer = document.getElementById('selectedBooks');
         const hiddenContainer = document.getElementById('selectedBooksContainer');
-        const form = document.getElementById('quickIssueForm');
 
-        // ----- State -----
-        let selected = []; // array of {id, title, author, qty, available, total}
-        let currentResults = [];
+        let selected = [];
 
-        // ----- Render selected list -----
+        window.resetSelectedBooks = function() {
+            selected = [];
+            renderSelected();
+        };
+
         function renderSelected() {
             if (selected.length === 0) {
-                selectedContainer.innerHTML = `<div class="empty-msg"><i class="fas fa-inbox"></i> No books selected yet. Search and add above.</div>`;
+                selectedContainer.innerHTML = `<div class="empty-msg"><i class="fas fa-inbox"></i> No books selected yet.</div>`;
                 hiddenContainer.innerHTML = '';
                 return;
             }
 
-            let html = `<table>
-                <thead><tr><th>Book</th><th>Qty</th><th>Stock</th><th>Remove</th></tr></thead><tbody>`;
+            let html = `<table><thead><tr><th>Book</th><th>Qty</th><th>Stock</th><th>Remove</th></tr></thead><tbody>`;
             selected.forEach((item, index) => {
                 const stockDisplay = item.available > 0 ? 
-                    `<span class="available">${item.available} available</span>` : 
-                    `<span class="out">Out of stock</span>`;
+                    `<span style="color:#10b981;">${item.available} avail</span>` : 
+                    `<span style="color:#ef4444;">Out of stock</span>`;
                 html += `<tr>
-                    <td><strong>${item.title}</strong> ${item.author ? 'by '+item.author : ''}</td>
+                    <td><strong>${item.title}</strong></td>
                     <td>${item.qty}</td>
                     <td>${stockDisplay}</td>
                     <td><button type="button" class="remove-btn" data-index="${index}"><i class="fas fa-trash-alt"></i></button></td>
@@ -1166,11 +1194,10 @@
             const filtered = booksData.filter(b => 
                 b.title.toLowerCase().includes(query) || 
                 (b.author && b.author.toLowerCase().includes(query))
-            ).filter(b => b.available > 0);
+            );
 
-            currentResults = filtered;
             if (filtered.length === 0) {
-                resultsDiv.innerHTML = `<div class="result-item" style="color:#94a3b8; cursor:default;">No matching books with stock available.</div>`;
+                resultsDiv.innerHTML = `<div class="result-item" style="color:#94a3b8; cursor:default;">No matching books.</div>`;
                 resultsDiv.style.display = 'block';
                 addBtn.disabled = true;
                 return;
@@ -1179,11 +1206,12 @@
             let html = '';
             filtered.forEach(b => {
                 const stockText = b.available > 0 ? 
-                    `<span class="available">${b.available} available</span>` : 
-                    `<span class="out">Out of stock</span>`;
+                    `<span style="color:#10b981;">${b.available} avail</span>` : 
+                    `<span style="color:#ef4444;">Out of stock</span>`;
+                const reserveBadge = b.is_reserve ? `<span class="badge badge-reserve" style="font-size:0.65rem;">RESERVE</span> ` : '';
                 html += `<div class="result-item" data-id="${b.id}">
-                    <div><strong>${b.title}</strong> ${b.author ? '– '+b.author : ''}</div>
-                    <div class="stock">${stockText}</div>
+                    <div>${reserveBadge}<strong>${b.title}</strong> ${b.author ? '– '+b.author : ''}</div>
+                    <div style="font-size:0.75rem;">${stockText}</div>
                 </div>`;
             });
             resultsDiv.innerHTML = html;
@@ -1194,9 +1222,7 @@
                 el.addEventListener('click', function() {
                     const id = parseInt(this.dataset.id);
                     const book = booksData.find(b => b.id === id);
-                    if (book) {
-                        addBook(book);
-                    }
+                    if (book) addBook(book);
                     searchInput.value = '';
                     resultsDiv.style.display = 'none';
                     addBtn.disabled = true;
@@ -1205,32 +1231,43 @@
         }
 
         function addBook(book) {
-            const qty = parseInt(qtyInput.value) || 1;
-            if (qty < 1) {
-                alert('Please enter a quantity of at least 1.');
-                return;
+            if (book.is_reserve) {
+                const borrowerType = document.getElementById('borrower_type').value;
+                const studentId = document.getElementById('student_id').value.trim();
+                const teacherId = document.getElementById('teacher_id').value.trim();
+
+                const hasApprovedReserve = approvedReserves.some(r => {
+                    if (r.book_id !== book.id) return false;
+                    if (borrowerType === 'student' && r.student_reg && r.student_reg.toLowerCase() === studentId.toLowerCase()) return true;
+                    if (borrowerType === 'teacher' && r.teacher_name && r.teacher_name.toLowerCase() === teacherId.toLowerCase()) return true;
+                    return false;
+                });
+
+                if (!hasApprovedReserve) {
+                    alert(`"${book.title}" is in the Reserve Collection and can only be issued to a borrower with an APPROVED reserve request.`);
+                    return;
+                }
             }
-            if (qty > book.available) {
-                alert(`Only ${book.available} copies available. Please reduce quantity.`);
+
+            if (book.available < 1) {
+                alert(`"${book.title}" is out of stock.`);
                 return;
             }
 
+            const qty = parseInt(qtyInput.value) || 1;
             const existing = selected.find(item => item.id === book.id);
             if (existing) {
-                const newQty = existing.qty + qty;
-                if (newQty > book.available) {
-                    alert(`You already selected ${existing.qty} copies. The total would exceed available stock (${book.available}).`);
+                if (existing.qty + qty > book.available) {
+                    alert(`Total requested exceeds available stock (${book.available}).`);
                     return;
                 }
-                existing.qty = newQty;
+                existing.qty += qty;
             } else {
                 selected.push({
                     id: book.id,
                     title: book.title,
-                    author: book.author,
                     qty: qty,
-                    available: book.available,
-                    total: book.total
+                    available: book.available
                 });
             }
 
@@ -1238,257 +1275,149 @@
             qtyInput.value = 1;
             searchInput.value = '';
             resultsDiv.style.display = 'none';
-            addBtn.disabled = true;
         }
 
-        addBtn.addEventListener('click', function() {
-            if (currentResults.length > 0) {
-                const book = currentResults[0];
-                addBook(book);
-            } else {
-                alert('No book selected from search results.');
-            }
-        });
-
-        searchInput.addEventListener('input', function() {
-            performSearch(this.value);
-        });
-        searchInput.addEventListener('blur', function() {
-            setTimeout(() => {
-                if (!resultsDiv.contains(document.activeElement)) {
-                    resultsDiv.style.display = 'none';
-                    addBtn.disabled = true;
-                }
-            }, 150);
-        });
-        searchInput.addEventListener('focus', function() {
-            if (this.value.trim().length > 0) {
-                performSearch(this.value);
-            }
-        });
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (currentResults.length > 0) {
-                    addBook(currentResults[0]);
-                }
-            }
-        });
-
-        qtyInput.addEventListener('change', function() {
-            if (this.value < 1) this.value = 1;
-        });
-
-        form.addEventListener('submit', function(e) {
-            if (selected.length === 0) {
-                e.preventDefault();
-                alert('Please select at least one book to issue.');
-                return;
-            }
-            for (let item of selected) {
-                if (item.qty > item.available) {
-                    e.preventDefault();
-                    alert(`"${item.title}" only has ${item.available} copies available. You selected ${item.qty}.`);
-                    return;
-                }
-            }
-        });
-
-        renderSelected();
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.book-selector') && !e.target.closest('.book-results')) {
-                resultsDiv.style.display = 'none';
-                addBtn.disabled = true;
-            }
-        });
+        if (searchInput) {
+            searchInput.addEventListener('input', function() { performSearch(this.value); });
+        }
 
         // ----- Tab switching -----
-        window.switchTab = function(tabId) {
+        window.switchTab = function(tabId, btn) {
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            event.currentTarget.classList.add('active');
+            btn.classList.add('active');
         };
 
         // ==========================================
-        //  TRANSACTIONS FILTER LOGIC (enhanced)
+        //  GENERIC FILTER FUNCTION FOR TRANSACTION TABLES
         // ==========================================
-        const tableBody = document.getElementById('libTableBody');
-        const statusFilter = document.getElementById('statusFilter');
-        const dateFrom = document.getElementById('dateFrom');
-        const dateTo = document.getElementById('dateTo');
-        const searchInputLib = document.getElementById('libSearch');
-        const libDeptFilter = document.getElementById('libDeptFilter');
-        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-        const visibleCount = document.getElementById('visibleCount');
-        const totalCount = document.getElementById('totalCount');
-        const emptyStateRow = document.getElementById('emptyStateRow');
-        const noMatchRow = document.getElementById('noMatchRow');
-        // stats elements
-        const transTotal = document.getElementById('transTotalCount');
-        const transIssued = document.getElementById('transIssuedCount');
-        const transReturned = document.getElementById('transReturnedCount');
-        const transOverdue = document.getElementById('transOverdueCount');
+        function filterTransactionTable(cfg) {
+            const tableBody = document.getElementById(cfg.bodyId);
+            if (!tableBody) return;
 
-        // Helper: get all data rows (exclude empty/no-match rows)
-        function getDataRows() {
-            return Array.from(tableBody.querySelectorAll('tr'))
-                .filter(row => row.id !== 'emptyStateRow' && row.id !== 'noMatchRow');
-        }
+            const searchVal = document.getElementById(cfg.searchId).value.toLowerCase().trim();
+            const statusVal = document.getElementById(cfg.statusId).value;
+            const deptVal = document.getElementById(cfg.deptId).value;
+            const dateFrom = document.getElementById(cfg.dateFromId).value;
+            const dateTo = document.getElementById(cfg.dateToId).value;
 
-        // Mark overdue rows
-        function markOverdueRows() {
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const rows = getDataRows();
-            rows.forEach(row => {
-                const dueDateStr = row.dataset.dueDate;
-                if (dueDateStr) {
-                    const due = new Date(dueDateStr + 'T00:00:00');
-                    const status = row.dataset.status;
-                    if (status === 'ISSUED' && due < today) {
-                        row.classList.add('overdue-row');
-                        // change status badge to overdue
-                        const statusCell = row.querySelector('td:nth-child(6)');
-                        if (statusCell) {
-                            const badge = statusCell.querySelector('.badge');
-                            if (badge) {
-                                badge.className = 'badge badge-overdue';
-                                badge.textContent = 'Overdue';
-                            }
-                        }
-                    } else {
-                        row.classList.remove('overdue-row');
-                    }
-                }
-            });
-        }
-
-        // Apply all filters (including department)
-        function applyFilters() {
-            const searchVal = searchInputLib.value.toLowerCase().trim();
-            const statusVal = statusFilter.value;
-            const fromVal = dateFrom.value;
-            const toVal = dateTo.value;
-            const deptVal = libDeptFilter.value;
-
-            const rows = getDataRows();
+            const rows = Array.from(tableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
+            
             let visible = 0;
-            const total = rows.length;
-            let issuedCount = 0, returnedCount = 0, overdueCount = 0;
+            let issuedCount = 0;
+            let returnedCount = 0;
+            let overdueCount = 0;
 
             rows.forEach(row => {
-                let show = true;
+                const issueDate = row.dataset.issueDate;
+                const dueDate = row.dataset.dueDate;
+                const status = row.dataset.status;
+                const deptId = row.dataset.departmentId || 'none';
+                const text = row.textContent.toLowerCase();
 
-                // Search
-                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) {
-                    show = false;
-                }
+                const isOverdue = (status === 'ISSUED' && dueDate && dueDate < todayStr);
 
-                // Status filter
-                if (show && statusVal !== 'all') {
-                    let rowStatus = row.dataset.status;
-                    if (statusVal === 'overdue') {
-                        if (!row.classList.contains('overdue-row')) {
-                            show = false;
-                        }
-                    } else {
-                        const statusMap = {
-                            'issued': 'ISSUED',
-                            'returned': 'RETURNED'
-                        };
-                        if (rowStatus !== statusMap[statusVal]) {
-                            show = false;
-                        }
-                    }
-                }
-
-                // Department filter
-                if (show && deptVal !== 'all') {
-                    const rowDept = row.dataset.departmentId || 'none';
-                    if (rowDept !== deptVal) {
-                        show = false;
-                    }
-                }
-
-                // Date range
-                if (show && (fromVal || toVal)) {
-                    const issueDate = row.dataset.issueDate;
-                    if (issueDate) {
-                        const issue = new Date(issueDate + 'T00:00:00');
-                        if (fromVal) {
-                            const from = new Date(fromVal + 'T00:00:00');
-                            if (issue < from) show = false;
-                        }
-                        if (show && toVal) {
-                            const to = new Date(toVal + 'T00:00:00');
-                            if (issue > to) show = false;
-                        }
-                    }
-                }
-
-                if (show) {
-                    row.style.display = '';
-                    visible++;
-                    // Count statuses
-                    const status = row.dataset.status;
-                    if (status === 'ISSUED') {
-                        issuedCount++;
-                        if (row.classList.contains('overdue-row')) overdueCount++;
-                    } else if (status === 'RETURNED') {
-                        returnedCount++;
-                    }
+                if (isOverdue) {
+                    row.classList.add('overdue-row');
                 } else {
-                    row.style.display = 'none';
+                    row.classList.remove('overdue-row');
                 }
+
+                // Count metrics
+                if (status === 'ISSUED') {
+                    if (isOverdue) overdueCount++;
+                    else issuedCount++;
+                } else if (status === 'RETURNED') {
+                    returnedCount++;
+                }
+
+                let show = true;
+                if (searchVal && !text.includes(searchVal)) show = false;
+                if (show && statusVal !== 'all') {
+                    if (statusVal === 'ISSUED' && status !== 'ISSUED') show = false;
+                    if (statusVal === 'RETURNED' && status !== 'RETURNED') show = false;
+                    if (statusVal === 'OVERDUE' && !isOverdue) show = false;
+                }
+                if (show && deptVal !== 'all' && deptId !== deptVal) show = false;
+                if (show && dateFrom && issueDate < dateFrom) show = false;
+                if (show && dateTo && issueDate > dateTo) show = false;
+
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
             });
 
-            // Update counts
-            totalCount.textContent = total;
-            visibleCount.textContent = visible;
-            transTotal.textContent = total;
-            transIssued.textContent = issuedCount;
-            transReturned.textContent = returnedCount;
-            transOverdue.textContent = overdueCount;
-
-            // Show/hide empty states
-            if (emptyStateRow) {
-                emptyStateRow.style.display = (total === 0) ? '' : 'none';
-            }
-            if (noMatchRow) {
-                noMatchRow.style.display = (total > 0 && visible === 0) ? '' : 'none';
-            }
+            document.getElementById(cfg.visibleCountId).textContent = visible;
+            document.getElementById(cfg.totalCountId).textContent = rows.length;
+            document.getElementById(cfg.statTotalId).textContent = rows.length;
+            document.getElementById(cfg.statIssuedId).textContent = issuedCount;
+            document.getElementById(cfg.statReturnedId).textContent = returnedCount;
+            document.getElementById(cfg.statOverdueId).textContent = overdueCount;
         }
 
-        // ----- Event listeners for transactions filters -----
-        statusFilter.addEventListener('change', applyFilters);
-        dateFrom.addEventListener('change', applyFilters);
-        dateTo.addEventListener('change', applyFilters);
-        searchInputLib.addEventListener('input', applyFilters);
-        libDeptFilter.addEventListener('change', applyFilters);
+        // --- Student Table Handlers ---
+        const studentCfg = {
+            bodyId: 'studentTableBody',
+            searchId: 'studentSearch',
+            statusId: 'studentStatusFilter',
+            deptId: 'studentDeptFilter',
+            dateFromId: 'studentDateFrom',
+            dateToId: 'studentDateTo',
+            visibleCountId: 'studentVisibleCount',
+            totalCountId: 'studentTotalCount',
+            statTotalId: 'studentTotalStat',
+            statIssuedId: 'studentIssuedStat',
+            statReturnedId: 'studentReturnedStat',
+            statOverdueId: 'studentOverdueStat'
+        };
 
-        clearFiltersBtn.addEventListener('click', function() {
-            statusFilter.value = 'all';
-            dateFrom.value = '';
-            dateTo.value = '';
-            searchInputLib.value = '';
-            libDeptFilter.value = 'all';
-            applyFilters();
+        const applyStudentFilters = () => filterTransactionTable(studentCfg);
+
+        document.getElementById('studentSearch').addEventListener('input', applyStudentFilters);
+        document.getElementById('studentStatusFilter').addEventListener('change', applyStudentFilters);
+        document.getElementById('studentDeptFilter').addEventListener('change', applyStudentFilters);
+        document.getElementById('studentDateFrom').addEventListener('change', applyStudentFilters);
+        document.getElementById('studentDateTo').addEventListener('change', applyStudentFilters);
+        document.getElementById('clearStudentFiltersBtn').addEventListener('click', function() {
+            document.getElementById('studentSearch').value = '';
+            document.getElementById('studentStatusFilter').value = 'all';
+            document.getElementById('studentDeptFilter').value = 'all';
+            document.getElementById('studentDateFrom').value = '';
+            document.getElementById('studentDateTo').value = '';
+            applyStudentFilters();
         });
 
-        // ----- Initialise transactions -----
-        markOverdueRows();
-        applyFilters();
+        // --- Teacher Table Handlers ---
+        const teacherCfg = {
+            bodyId: 'teacherTableBody',
+            searchId: 'teacherSearch',
+            statusId: 'teacherStatusFilter',
+            deptId: 'teacherDeptFilter',
+            dateFromId: 'teacherDateFrom',
+            dateToId: 'teacherDateTo',
+            visibleCountId: 'teacherVisibleCount',
+            totalCountId: 'teacherTotalCount',
+            statTotalId: 'teacherTotalStat',
+            statIssuedId: 'teacherIssuedStat',
+            statReturnedId: 'teacherReturnedStat',
+            statOverdueId: 'teacherOverdueStat'
+        };
 
-        // Observe for changes (e.g., after return)
-        if (window.MutationObserver) {
-            const observer = new MutationObserver(function() {
-                markOverdueRows();
-                applyFilters();
-            });
-            observer.observe(tableBody, { childList: true, subtree: true });
-        }
+        const applyTeacherFilters = () => filterTransactionTable(teacherCfg);
+
+        document.getElementById('teacherSearch').addEventListener('input', applyTeacherFilters);
+        document.getElementById('teacherStatusFilter').addEventListener('change', applyTeacherFilters);
+        document.getElementById('teacherDeptFilter').addEventListener('change', applyTeacherFilters);
+        document.getElementById('teacherDateFrom').addEventListener('change', applyTeacherFilters);
+        document.getElementById('teacherDateTo').addEventListener('change', applyTeacherFilters);
+        document.getElementById('clearTeacherFiltersBtn').addEventListener('click', function() {
+            document.getElementById('teacherSearch').value = '';
+            document.getElementById('teacherStatusFilter').value = 'all';
+            document.getElementById('teacherDeptFilter').value = 'all';
+            document.getElementById('teacherDateFrom').value = '';
+            document.getElementById('teacherDateTo').value = '';
+            applyTeacherFilters();
+        });
 
         // ==========================================
         //  CATALOG FILTER LOGIC
@@ -1496,99 +1425,112 @@
         const catalogBody = document.getElementById('catalogTableBody');
         const catalogSearch = document.getElementById('catalogSearch');
         const catalogDeptFilter = document.getElementById('catalogDeptFilter');
+        const catalogCollectionFilter = document.getElementById('catalogCollectionFilter');
         const catalogAvailFilter = document.getElementById('catalogAvailFilter');
-        const clearCatalogFilters = document.getElementById('clearCatalogFiltersBtn');
-        const catVisible = document.getElementById('catalogVisibleCount');
-        const catTotal = document.getElementById('catalogTotalCount');
-        const catTotalTitles = document.getElementById('catTotalTitles');
-        const catTotalCopies = document.getElementById('catTotalCopies');
-        const catAvailCopies = document.getElementById('catAvailCopies');
-        const catOutOfStock = document.getElementById('catOutOfStock');
 
         function applyCatalogFilters() {
             const searchVal = catalogSearch.value.toLowerCase().trim();
             const deptVal = catalogDeptFilter.value;
+            const collVal = catalogCollectionFilter.value;
             const availVal = catalogAvailFilter.value;
 
-            const rows = Array.from(catalogBody.querySelectorAll('tr'));
+            const rows = Array.from(catalogBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
             let visible = 0;
-            const total = rows.length;
-            let totalCopies = 0, availCopies = 0, outOfStock = 0;
+            let totalCopies = 0;
+            let availCopies = 0;
+            let outOfStock = 0;
 
             rows.forEach(row => {
                 let show = true;
+                const avail = parseInt(row.dataset.available) || 0;
+                const total = parseInt(row.dataset.total) || 0;
 
-                // Search
-                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) {
-                    show = false;
+                totalCopies += total;
+                availCopies += avail;
+                if (avail < 1) outOfStock++;
+
+                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) show = false;
+                if (show && deptVal !== 'all' && (row.dataset.departmentId || 'none') !== deptVal) show = false;
+                
+                if (show && collVal !== 'all') {
+                    const isRes = row.dataset.isReserve === 'true';
+                    if (collVal === 'reserve' && !isRes) show = false;
+                    if (collVal === 'general' && isRes) show = false;
                 }
 
-                // Department
-                if (show && deptVal !== 'all') {
-                    const rowDept = row.dataset.departmentId || 'none';
-                    if (rowDept !== deptVal) {
-                        show = false;
-                    }
-                }
-
-                // Availability
                 if (show && availVal !== 'all') {
-                    const avail = parseInt(row.dataset.available) || 0;
                     if (availVal === 'available' && avail < 1) show = false;
                     if (availVal === 'outofstock' && avail > 0) show = false;
                 }
 
-                if (show) {
-                    row.style.display = '';
-                    visible++;
-                    // calculate stats for visible rows
-                    const avail = parseInt(row.dataset.available) || 0;
-                    const total = parseInt(row.dataset.total) || 0;
-                    totalCopies += total;
-                    availCopies += avail;
-                    if (avail === 0) outOfStock++;
-                } else {
-                    row.style.display = 'none';
-                }
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
             });
 
-            catVisible.textContent = visible;
-            catTotal.textContent = total;
-            catTotalTitles.textContent = total;
-            catTotalCopies.textContent = totalCopies;
-            catAvailCopies.textContent = availCopies;
-            catOutOfStock.textContent = outOfStock;
+            document.getElementById('catalogVisibleCount').textContent = visible;
+            document.getElementById('catalogTotalCount').textContent = rows.length;
+            document.getElementById('catTotalTitles').textContent = rows.length;
+            document.getElementById('catTotalCopies').textContent = totalCopies;
+            document.getElementById('catAvailCopies').textContent = availCopies;
+            document.getElementById('catOutOfStock').textContent = outOfStock;
         }
 
-        // Event listeners for catalog
         catalogSearch.addEventListener('input', applyCatalogFilters);
         catalogDeptFilter.addEventListener('change', applyCatalogFilters);
+        catalogCollectionFilter.addEventListener('change', applyCatalogFilters);
         catalogAvailFilter.addEventListener('change', applyCatalogFilters);
-        clearCatalogFilters.addEventListener('click', function() {
+        document.getElementById('clearCatalogFiltersBtn').addEventListener('click', function() {
             catalogSearch.value = '';
             catalogDeptFilter.value = 'all';
+            catalogCollectionFilter.value = 'all';
             catalogAvailFilter.value = 'all';
             applyCatalogFilters();
         });
 
-        // Initial catalog filter
-        applyCatalogFilters();
+        // ==========================================
+        //  RESERVE REQUESTS FILTER LOGIC
+        // ==========================================
+        const reserveBody = document.getElementById('reserveTableBody');
+        const reserveSearch = document.getElementById('reserveSearch');
+        const reserveStatusFilter = document.getElementById('reserveStatusFilter');
 
-        // ==========================================
-        //  TABLE HEIGHT TOGGLE
-        // ==========================================
+        function applyReserveFilters() {
+            const searchVal = reserveSearch.value.toLowerCase().trim();
+            const statusVal = reserveStatusFilter.value;
+
+            const rows = Array.from(reserveBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
+            let visible = 0;
+
+            rows.forEach(row => {
+                let show = true;
+                if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) show = false;
+                if (show && statusVal !== 'all' && row.dataset.status !== statusVal) show = false;
+
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+
+            document.getElementById('reserveVisibleCount').textContent = visible;
+            document.getElementById('reserveTotalCount').textContent = rows.length;
+        }
+
+        reserveSearch.addEventListener('input', applyReserveFilters);
+        reserveStatusFilter.addEventListener('change', applyReserveFilters);
+        document.getElementById('clearReserveFiltersBtn').addEventListener('click', function() {
+            reserveSearch.value = '';
+            reserveStatusFilter.value = 'all';
+            applyReserveFilters();
+        });
+
+        // Initial Filter Execution
+        applyStudentFilters();
+        applyTeacherFilters();
+        applyCatalogFilters();
+        applyReserveFilters();
+
         window.toggleTableHeight = function(wrapperId) {
             const wrapper = document.getElementById(wrapperId);
-            if (!wrapper) return;
-            wrapper.classList.toggle('expanded');
-            const btn = wrapper.parentElement.querySelector('.table-toggle-wrapper .btn');
-            if (btn) {
-                if (wrapper.classList.contains('expanded')) {
-                    btn.innerHTML = '<i class="fas fa-compress"></i> Show Less';
-                } else {
-                    btn.innerHTML = '<i class="fas fa-expand"></i> Show All';
-                }
-            }
+            if (wrapper) wrapper.classList.toggle('expanded');
         };
     });
 </script>

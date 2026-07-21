@@ -7,14 +7,14 @@ from django.utils import timezone
 from attendance.models import (
     User, Department, Course, CourseUnit, Stream, TeacherProfile, StudentProfile,
     AcademicTerm, StudentTermFee, FeePaymentTransaction, Book, LibraryRecord,
-    TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord,
+    ReserveRequest, TimetableBatch, TimetableEntry, AttendanceSession, AttendanceRecord,
     Hostel, Room, RoomAllocation, DisciplinaryRecord, StaffPaymentRecord
 )
 
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Seeds the database with a full roster, attendance records, and data for the accountant, library, lodgings, and disciplinary sectors.'
+    help = 'Seeds the database with a full roster, attendance records, realistic library catalog, lodgings, and disciplinary sector data.'
 
     def handle(self, *args, **options):
         self.stdout.write('Starting comprehensive database seed...')
@@ -196,27 +196,133 @@ class Command(BaseCommand):
             all_rooms.extend([r1, r2])
         self.stdout.write('Hostel infrastructure and room distribution maps generated.')
 
-        # ---------- 9. Create sample books for library ----------
-        sample_books = [
-            'Introduction to Python Programming', 
-            'Database Systems: Practical Guide', 
-            'Advanced Financial Accounting', 
-            'Principles of Marketing', 
-            'Educational Psychology Frameworks', 
-            'Network Routing Fundamentals'
+        # ---------- 9. Researched Academic Books Catalog ----------
+        researched_books = [
+            # --- Computing & Information Technology ---
+            {
+                'title': 'Introduction to Algorithms (4th Edition)',
+                'author': 'Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein',
+                'isbn': '9780262046305',
+                'total_copies': 5,
+                'available_copies': 2,
+                'is_reserve': True  # High demand standard reference
+            },
+            {
+                'title': 'Database System Concepts (7th Edition)',
+                'author': 'Abraham Silberschatz, Henry F. Korth, S. Sudarshan',
+                'isbn': '9781260515046',
+                'total_copies': 8,
+                'available_copies': 6,
+                'is_reserve': False
+            },
+            {
+                'title': 'Computer Networking: A Top-Down Approach',
+                'author': 'James Kurose, Keith Ross',
+                'isbn': '9780136681557',
+                'total_copies': 6,
+                'available_copies': 4,
+                'is_reserve': False
+            },
+            {
+                'title': 'Clean Code: A Handbook of Agile Software Craftsmanship',
+                'author': 'Robert C. Martin',
+                'isbn': '9780132350884',
+                'total_copies': 4,
+                'available_copies': 1,
+                'is_reserve': False
+            },
+            {
+                'title': 'Operating System Concepts',
+                'author': 'Abraham Silberschatz, Peter B. Galvin, Greg Gagne',
+                'isbn': '9781119800361',
+                'total_copies': 3,
+                'available_copies': 1,
+                'is_reserve': True
+            },
+
+            # --- Business Administration & Management ---
+            {
+                'title': 'Financial Accounting (12th Edition)',
+                'author': 'Walter T. Harrison, Charles T. Horngren, C. William Thomas',
+                'isbn': '9780134727691',
+                'total_copies': 10,
+                'available_copies': 7,
+                'is_reserve': False
+            },
+            {
+                'title': 'Principles of Marketing (18th Edition)',
+                'author': 'Philip Kotler, Gary Armstrong',
+                'isbn': '9780135766606',
+                'total_copies': 8,
+                'available_copies': 5,
+                'is_reserve': False
+            },
+            {
+                'title': 'Organizational Behavior (18th Edition)',
+                'author': 'Stephen P. Robbins, Timothy A. Judge',
+                'isbn': '9780134729664',
+                'total_copies': 4,
+                'available_copies': 2,
+                'is_reserve': True
+            },
+            {
+                'title': 'Corporate Finance: Theory and Practice',
+                'author': 'Jonathan Berk, Peter DeMarzo',
+                'isbn': '9780134640846',
+                'total_copies': 6,
+                'available_copies': 3,
+                'is_reserve': False
+            },
+
+            # --- Education & Humanities ---
+            {
+                'title': 'Educational Psychology (14th Edition)',
+                'author': 'Anita Woolfolk',
+                'isbn': '9780134774329',
+                'total_copies': 7,
+                'available_copies': 4,
+                'is_reserve': False
+            },
+            {
+                'title': 'Curriculum: Foundations, Principles, and Issues',
+                'author': 'Allan C. Ornstein, Francis P. Hunkins',
+                'isbn': '9780134013503',
+                'total_copies': 5,
+                'available_copies': 2,
+                'is_reserve': True
+            },
+            {
+                'title': 'Methods for Effective Teaching: Meeting the Needs of All Students',
+                'author': 'Paul R. Burden, David M. Byrd',
+                'isbn': '9780134801933',
+                'total_copies': 6,
+                'available_copies': 5,
+                'is_reserve': False
+            }
         ]
+
         book_objects = []
-        for title in sample_books:
+        general_book_objects = []
+        reserve_book_objects = []
+
+        for b_data in researched_books:
             book, _ = Book.objects.get_or_create(
-                title=title,
+                isbn=b_data['isbn'],
                 defaults={
-                    'author': random.choice(['John Doe', 'Jane Smith', 'Robert Johnson', 'Maria Garcia']),
-                    'isbn': f'978-{random.randint(1000000000, 9999999999)}'[:13],
-                    'total_copies': random.randint(3, 8),
-                    'available_copies': random.randint(1, 6)
+                    'title': b_data['title'],
+                    'author': b_data['author'],
+                    'total_copies': b_data['total_copies'],
+                    'available_copies': b_data['available_copies'],
+                    'is_reserve': b_data['is_reserve']
                 }
             )
             book_objects.append(book)
+            if book.is_reserve:
+                reserve_book_objects.append(book)
+            else:
+                general_book_objects.append(book)
+
+        self.stdout.write(f'Cataloged {len(book_objects)} authentic academic titles across departments.')
 
         # ---------- 10. Dynamic Student Roster & Sector Records Seeding ----------
         self.stdout.write('Generating student cohorts along with library, lodging, and financial records...')
@@ -292,16 +398,16 @@ class Command(BaseCommand):
                             defaults={'room': assigned_room, 'allocated_by': warden_user}
                         )
 
-                # --- Seed Library Data (using Book model) ---
-                if random.random() < 0.30:
-                    book = random.choice(book_objects)
+                # --- Seed General Library Checkout Records ---
+                if random.random() < 0.35 and general_book_objects:
+                    book = random.choice(general_book_objects)
                     issued = random.choice([True, False])
                     issue_date = timezone.now().date() - timedelta(days=random.randint(5, 20))
-                    # Ensure at least one copy available
+                    
                     if book.available_copies < 1:
                         book.available_copies = random.randint(1, 3)
-                        book.total_copies = book.available_copies
                         book.save()
+
                     LibraryRecord.objects.create(
                         student=student_prof,
                         book=book,
@@ -309,7 +415,20 @@ class Command(BaseCommand):
                         due_date=issue_date + timedelta(days=14),
                         return_date=issue_date + timedelta(days=random.randint(1, 12)) if issued else None,
                         status='RETURNED' if issued else 'ISSUED',
-                        remarks=random.choice(['', 'Good condition', 'Slight wear', 'Needs repair'])
+                        remarks=random.choice(['', 'Good condition', 'Slight wear', 'Standard checkout'])
+                    )
+
+                # --- Seed Reserve Section Applications ---
+                if random.random() < 0.15 and reserve_book_objects:
+                    reserve_book = random.choice(reserve_book_objects)
+                    req_status = random.choice(['PENDING', 'APPROVED', 'DECLINED'])
+                    ReserveRequest.objects.get_or_create(
+                        student=student_prof,
+                        book=reserve_book,
+                        defaults={
+                            'status': req_status,
+                            'request_date': timezone.now() - timedelta(days=random.randint(1, 10))
+                        }
                     )
 
         # --- Seed Staff Payout Logs ---
