@@ -819,11 +819,14 @@
                 <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
                     <div class="filter-group">
                         <label for="reserveStatusFilter"><i class="fas fa-filter"></i> Application Status</label>
+                        <!-- All possible status values from the view -->
                         <select id="reserveStatusFilter" class="form-control-sm">
-                            <option value="all">All Statuses</option>
-                            <option value="PENDING" selected>Pending Approval</option>
+                            <option value="all" selected>All Statuses</option>
+                            <option value="PENDING">Pending Approval</option>
                             <option value="APPROVED">Approved</option>
-                            <option value="DECLINED">Declined</option>
+                            <option value="FULFILLED">Fulfilled</option>
+                            <option value="REJECTED">Rejected</option>
+                            <option value="COMPLETED">Completed</option>
                         </select>
                     </div>
                     <button class="btn btn-sm btn-primary" id="clearReserveFiltersBtn" style="background:#e2e8f0; color:#475569;">
@@ -880,6 +883,8 @@
                                         <span class="badge badge-success">Approved</span>
                                     {% elif req.status == 'FULFILLED' %}
                                         <span class="badge badge-success">Fulfilled</span>
+                                    {% elif req.status == 'COMPLETED' %}   <!-- NEW: handle completed -->
+                                        <span class="badge badge-info">Completed</span>
                                     {% else %}
                                         <span class="badge badge-danger">Declined</span>
                                     {% endif %}
@@ -1116,6 +1121,22 @@
             {% endif %}
             {% endfor %}
         ];
+
+        // ----- LOGGING: All reserve requests from server -----
+        const reserveData = [
+            {% for req in reserve_requests %}
+            {
+                id: {{ req.id }},
+                status: "{{ req.status }}",
+                book: "{{ req.book.title|escapejs }}",
+                student: "{{ req.student.name|default:''|escapejs }}",
+                teacher: "{{ req.teacher.name|default:''|escapejs }}",
+                reg_no: "{{ req.student.reg_number|default:''|escapejs }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        console.log('===== RESERVE REQUESTS FROM SERVER =====');
+        console.log(reserveData);
 
         // ----- Quick Issue selector logic -----
         const searchInput = document.getElementById('bookSearch');
@@ -1488,7 +1509,7 @@
         });
 
         // ==========================================
-        //  RESERVE REQUESTS FILTER LOGIC
+        //  RESERVE REQUESTS FILTER LOGIC (with debug)
         // ==========================================
         const reserveBody = document.getElementById('reserveTableBody');
         const reserveSearch = document.getElementById('reserveSearch');
@@ -1499,16 +1520,32 @@
             const statusVal = reserveStatusFilter.value;
 
             const rows = Array.from(reserveBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
+            
+            // ---- DEBUG LOGGING ----
+            console.log('----- Applying Reserve Filters -----');
+            console.log('Search term:', searchVal);
+            console.log('Selected status filter:', statusVal);
+            console.log('Total rows (excluding empty):', rows.length);
+            
             let visible = 0;
+            const statusCounts = {};
 
             rows.forEach(row => {
+                const rowStatus = row.dataset.status;
+                // Count all rows by status
+                statusCounts[rowStatus] = (statusCounts[rowStatus] || 0) + 1;
+
                 let show = true;
                 if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) show = false;
-                if (show && statusVal !== 'all' && row.dataset.status !== statusVal) show = false;
+                if (show && statusVal !== 'all' && rowStatus !== statusVal) show = false;
 
                 row.style.display = show ? '' : 'none';
                 if (show) visible++;
             });
+
+            console.log('Status counts in this table:', statusCounts);
+            console.log('Visible rows after filter:', visible);
+            console.log('------------------------------------');
 
             document.getElementById('reserveVisibleCount').textContent = visible;
             document.getElementById('reserveTotalCount').textContent = rows.length;
