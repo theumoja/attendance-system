@@ -430,10 +430,7 @@
                 <i class="fas fa-exchange-alt"></i> Issued Books
             </button>
             <button class="tab-btn" onclick="switchTab('catalog-tab', this)">
-                <i class="fas fa-book"></i> General Books
-            </button>
-            <button class="tab-btn" onclick="switchTab('reserved-catalog-tab', this)">
-                <i class="fas fa-book-open"></i> Reserved Books
+                <i class="fas fa-book"></i> Book Catalog
             </button>
             <button class="tab-btn" onclick="switchTab('reserve-tab', this)">
                 <i class="fas fa-bookmark"></i> Reserve Requests
@@ -698,12 +695,12 @@
 
         </div>
 
-        <!-- TAB 2: Catalog (General Books) -->
+        <!-- TAB 2: Catalog -->
         <div id="catalog-tab" class="tab-pane">
             <div class="card">
                 <div class="toolbar">
                     <h2 class="card-title" style="margin-bottom:0;">
-                        <i class="fas fa-warehouse"></i> General Book Catalog
+                        <i class="fas fa-warehouse"></i> Inventory Catalog
                     </h2>
                     <input type="text" id="catalogSearch" class="search-bar" placeholder="Search title, author or ISBN...">
                 </div>
@@ -716,6 +713,14 @@
                             {% for dept in departments %}
                                 <option value="{{ dept.id }}">{{ dept.name }}</option>
                             {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="catalogCollectionFilter"><i class="fas fa-bookmark"></i> Collection</label>
+                        <select id="catalogCollectionFilter" class="form-control-sm">
+                            <option value="all">All Collections</option>
+                            <option value="general">General Catalog</option>
+                            <option value="reserve">Reserve Collection</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -749,20 +754,28 @@
                                 <th>Author</th>
                                 <th>ISBN</th>
                                 <th>Department</th>
+                                <th>Type</th>
                                 <th style="text-align:center;">Available</th>
                                 <th style="text-align:center;">Total</th>
                             </tr>
                         </thead>
                         <tbody id="catalogTableBody">
                             {% for book in books %}
-                            {% if not book.is_reserve %}
                             <tr data-department-id="{% if book.department %}{{ book.department.id }}{% else %}none{% endif %}"
+                                data-is-reserve="{{ book.is_reserve|yesno:'true,false' }}"
                                 data-available="{{ book.available_copies }}"
                                 data-total="{{ book.total_copies }}">
                                 <td><strong>{{ book.title }}</strong></td>
                                 <td>{{ book.author|default:"—" }}</td>
                                 <td><code>{{ book.isbn|default:"—" }}</code></td>
                                 <td>{% if book.department %}{{ book.department.name }}{% else %}—{% endif %}</td>
+                                <td>
+                                    {% if book.is_reserve %}
+                                        <span class="badge badge-reserve">Reserve</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">General</span>
+                                    {% endif %}
+                                </td>
                                 <td style="text-align:center;">
                                     {% if book.available_copies < 1 %}
                                         <span class="badge badge-danger">Out of Stock</span>
@@ -772,13 +785,12 @@
                                 </td>
                                 <td style="text-align:center;"><strong>{{ book.total_copies }}</strong></td>
                             </tr>
-                            {% endif %}
                             {% empty %}
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <i class="fas fa-book"></i>
-                                        <p>The general catalog is currently empty.</p>
+                                        <p>The catalog is currently empty.</p>
                                     </div>
                                 </td>
                             </tr>
@@ -788,102 +800,6 @@
                 </div>
                 <div class="table-toggle-wrapper">
                     <button class="btn btn-sm btn-outline" id="catalogToggleBtn" onclick="toggleTableHeight('catalogTableWrapper')">
-                        <i class="fas fa-expand"></i> Show All
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- NEW TAB: Reserved Books -->
-        <div id="reserved-catalog-tab" class="tab-pane">
-            <div class="card">
-                <div class="toolbar">
-                    <h2 class="card-title" style="margin-bottom:0;">
-                        <i class="fas fa-book-open"></i> Reserved Books Collection
-                    </h2>
-                    <input type="text" id="reservedSearch" class="search-bar" placeholder="Search title, author or ISBN...">
-                </div>
-
-                <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
-                    <div class="filter-group">
-                        <label for="reservedDeptFilter"><i class="fas fa-building"></i> Department</label>
-                        <select id="reservedDeptFilter" class="form-control-sm">
-                            <option value="all">All Departments</option>
-                            {% for dept in departments %}
-                                <option value="{{ dept.id }}">{{ dept.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="reservedAvailFilter"><i class="fas fa-boxes"></i> Availability</label>
-                        <select id="reservedAvailFilter" class="form-control-sm">
-                            <option value="all">All Stock</option>
-                            <option value="available">Available</option>
-                            <option value="outofstock">Out of Stock</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-sm btn-primary" id="clearReservedFiltersBtn" style="background:#e2e8f0; color:#475569;">
-                        <i class="fas fa-times"></i> Clear Filters
-                    </button>
-                    <span class="filter-count" style="margin-left:auto; font-size:0.85rem; color:#64748b;">
-                        Showing <strong id="reservedVisibleCount">0</strong> of <strong id="reservedTotalCount">0</strong> books
-                    </span>
-                </div>
-
-                <div class="stats-bar" id="reservedStats">
-                    <span class="stat-item"><span class="label">Total Titles:</span> <span class="value" id="resTotalTitles">0</span></span>
-                    <span class="stat-item"><span class="label">Total Copies:</span> <span class="value" id="resTotalCopies">0</span></span>
-                    <span class="stat-item"><span class="label">Available Copies:</span> <span class="value" style="color:#10b981;" id="resAvailCopies">0</span></span>
-                    <span class="stat-item"><span class="label">Out of Stock:</span> <span class="value" style="color:#ef4444;" id="resOutOfStock">0</span></span>
-                </div>
-
-                <div class="table-responsive" id="reservedTableWrapper">
-                    <table class="table" id="reservedCatalogTable">
-                        <thead>
-                            <tr>
-                                <th>Book Title</th>
-                                <th>Author</th>
-                                <th>ISBN</th>
-                                <th>Department</th>
-                                <th style="text-align:center;">Available</th>
-                                <th style="text-align:center;">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reservedCatalogTableBody">
-                            {% for book in books %}
-                            {% if book.is_reserve %}
-                            <tr data-department-id="{% if book.department %}{{ book.department.id }}{% else %}none{% endif %}"
-                                data-available="{{ book.available_copies }}"
-                                data-total="{{ book.total_copies }}">
-                                <td><strong>{{ book.title }}</strong></td>
-                                <td>{{ book.author|default:"—" }}</td>
-                                <td><code>{{ book.isbn|default:"—" }}</code></td>
-                                <td>{% if book.department %}{{ book.department.name }}{% else %}—{% endif %}</td>
-                                <td style="text-align:center;">
-                                    {% if book.available_copies < 1 %}
-                                        <span class="badge badge-danger">Out of Stock</span>
-                                    {% else %}
-                                        <span class="badge badge-success">{{ book.available_copies }}</span>
-                                    {% endif %}
-                                </td>
-                                <td style="text-align:center;"><strong>{{ book.total_copies }}</strong></td>
-                            </tr>
-                            {% endif %}
-                            {% empty %}
-                            <tr>
-                                <td colspan="6">
-                                    <div class="empty-state">
-                                        <i class="fas fa-book-open"></i>
-                                        <p>No reserved books have been added yet.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="table-toggle-wrapper">
-                    <button class="btn btn-sm btn-outline" onclick="toggleTableHeight('reservedTableWrapper')">
                         <i class="fas fa-expand"></i> Show All
                     </button>
                 </div>
@@ -903,6 +819,7 @@
                 <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:0.8rem 1.2rem; padding:0.75rem 0; border-bottom:1px solid #f1f5f9; margin-bottom:1rem;">
                     <div class="filter-group">
                         <label for="reserveStatusFilter"><i class="fas fa-filter"></i> Application Status</label>
+                        <!-- All possible status values from the view -->
                         <select id="reserveStatusFilter" class="form-control-sm">
                             <option value="all" selected>All Statuses</option>
                             <option value="PENDING">Pending Approval</option>
@@ -966,7 +883,7 @@
                                         <span class="badge badge-success">Approved</span>
                                     {% elif req.status == 'FULFILLED' %}
                                         <span class="badge badge-success">Fulfilled</span>
-                                    {% elif req.status == 'COMPLETED' %}
+                                    {% elif req.status == 'COMPLETED' %}   <!-- NEW: handle completed -->
                                         <span class="badge badge-info">Completed</span>
                                     {% else %}
                                         <span class="badge badge-danger">Declined</span>
@@ -1524,17 +1441,21 @@
         });
 
         // ==========================================
-        //  GENERIC CATALOG FILTER FUNCTION (reused for General & Reserved)
+        //  CATALOG FILTER LOGIC
         // ==========================================
-        function applyGenericCatalogFilters(cfg) {
-            const tableBody = document.getElementById(cfg.bodyId);
-            if (!tableBody) return;
+        const catalogBody = document.getElementById('catalogTableBody');
+        const catalogSearch = document.getElementById('catalogSearch');
+        const catalogDeptFilter = document.getElementById('catalogDeptFilter');
+        const catalogCollectionFilter = document.getElementById('catalogCollectionFilter');
+        const catalogAvailFilter = document.getElementById('catalogAvailFilter');
 
-            const searchVal = document.getElementById(cfg.searchId).value.toLowerCase().trim();
-            const deptVal = document.getElementById(cfg.deptId).value;
-            const availVal = document.getElementById(cfg.availId).value;
+        function applyCatalogFilters() {
+            const searchVal = catalogSearch.value.toLowerCase().trim();
+            const deptVal = catalogDeptFilter.value;
+            const collVal = catalogCollectionFilter.value;
+            const availVal = catalogAvailFilter.value;
 
-            const rows = Array.from(tableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
+            const rows = Array.from(catalogBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
             let visible = 0;
             let totalCopies = 0;
             let availCopies = 0;
@@ -1551,6 +1472,13 @@
 
                 if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) show = false;
                 if (show && deptVal !== 'all' && (row.dataset.departmentId || 'none') !== deptVal) show = false;
+                
+                if (show && collVal !== 'all') {
+                    const isRes = row.dataset.isReserve === 'true';
+                    if (collVal === 'reserve' && !isRes) show = false;
+                    if (collVal === 'general' && isRes) show = false;
+                }
+
                 if (show && availVal !== 'all') {
                     if (availVal === 'available' && avail < 1) show = false;
                     if (availVal === 'outofstock' && avail > 0) show = false;
@@ -1560,66 +1488,28 @@
                 if (show) visible++;
             });
 
-            document.getElementById(cfg.visibleCountId).textContent = visible;
-            document.getElementById(cfg.totalCountId).textContent = rows.length;
-            document.getElementById(cfg.statTitlesId).textContent = rows.length;
-            document.getElementById(cfg.statTotalCopiesId).textContent = totalCopies;
-            document.getElementById(cfg.statAvailCopiesId).textContent = availCopies;
-            document.getElementById(cfg.statOutOfStockId).textContent = outOfStock;
+            document.getElementById('catalogVisibleCount').textContent = visible;
+            document.getElementById('catalogTotalCount').textContent = rows.length;
+            document.getElementById('catTotalTitles').textContent = rows.length;
+            document.getElementById('catTotalCopies').textContent = totalCopies;
+            document.getElementById('catAvailCopies').textContent = availCopies;
+            document.getElementById('catOutOfStock').textContent = outOfStock;
         }
 
-        // --- General Catalog ---
-        const catalogCfg = {
-            bodyId: 'catalogTableBody',
-            searchId: 'catalogSearch',
-            deptId: 'catalogDeptFilter',
-            availId: 'catalogAvailFilter',
-            visibleCountId: 'catalogVisibleCount',
-            totalCountId: 'catalogTotalCount',
-            statTitlesId: 'catTotalTitles',
-            statTotalCopiesId: 'catTotalCopies',
-            statAvailCopiesId: 'catAvailCopies',
-            statOutOfStockId: 'catOutOfStock'
-        };
-        const applyCatalogFilters = () => applyGenericCatalogFilters(catalogCfg);
-
-        document.getElementById('catalogSearch').addEventListener('input', applyCatalogFilters);
-        document.getElementById('catalogDeptFilter').addEventListener('change', applyCatalogFilters);
-        document.getElementById('catalogAvailFilter').addEventListener('change', applyCatalogFilters);
+        catalogSearch.addEventListener('input', applyCatalogFilters);
+        catalogDeptFilter.addEventListener('change', applyCatalogFilters);
+        catalogCollectionFilter.addEventListener('change', applyCatalogFilters);
+        catalogAvailFilter.addEventListener('change', applyCatalogFilters);
         document.getElementById('clearCatalogFiltersBtn').addEventListener('click', function() {
-            document.getElementById('catalogSearch').value = '';
-            document.getElementById('catalogDeptFilter').value = 'all';
-            document.getElementById('catalogAvailFilter').value = 'all';
+            catalogSearch.value = '';
+            catalogDeptFilter.value = 'all';
+            catalogCollectionFilter.value = 'all';
+            catalogAvailFilter.value = 'all';
             applyCatalogFilters();
         });
 
-        // --- Reserved Books Catalog ---
-        const reservedCatalogCfg = {
-            bodyId: 'reservedCatalogTableBody',
-            searchId: 'reservedSearch',
-            deptId: 'reservedDeptFilter',
-            availId: 'reservedAvailFilter',
-            visibleCountId: 'reservedVisibleCount',
-            totalCountId: 'reservedTotalCount',
-            statTitlesId: 'resTotalTitles',
-            statTotalCopiesId: 'resTotalCopies',
-            statAvailCopiesId: 'resAvailCopies',
-            statOutOfStockId: 'resOutOfStock'
-        };
-        const applyReservedCatalogFilters = () => applyGenericCatalogFilters(reservedCatalogCfg);
-
-        document.getElementById('reservedSearch').addEventListener('input', applyReservedCatalogFilters);
-        document.getElementById('reservedDeptFilter').addEventListener('change', applyReservedCatalogFilters);
-        document.getElementById('reservedAvailFilter').addEventListener('change', applyReservedCatalogFilters);
-        document.getElementById('clearReservedFiltersBtn').addEventListener('click', function() {
-            document.getElementById('reservedSearch').value = '';
-            document.getElementById('reservedDeptFilter').value = 'all';
-            document.getElementById('reservedAvailFilter').value = 'all';
-            applyReservedCatalogFilters();
-        });
-
         // ==========================================
-        //  RESERVE REQUESTS FILTER LOGIC
+        //  RESERVE REQUESTS FILTER LOGIC (with debug)
         // ==========================================
         const reserveBody = document.getElementById('reserveTableBody');
         const reserveSearch = document.getElementById('reserveSearch');
@@ -1631,15 +1521,31 @@
 
             const rows = Array.from(reserveBody.querySelectorAll('tr')).filter(r => !r.classList.contains('empty-row'));
             
+            // ---- DEBUG LOGGING ----
+            console.log('----- Applying Reserve Filters -----');
+            console.log('Search term:', searchVal);
+            console.log('Selected status filter:', statusVal);
+            console.log('Total rows (excluding empty):', rows.length);
+            
             let visible = 0;
+            const statusCounts = {};
+
             rows.forEach(row => {
                 const rowStatus = row.dataset.status;
+                // Count all rows by status
+                statusCounts[rowStatus] = (statusCounts[rowStatus] || 0) + 1;
+
                 let show = true;
                 if (searchVal && !row.textContent.toLowerCase().includes(searchVal)) show = false;
                 if (show && statusVal !== 'all' && rowStatus !== statusVal) show = false;
+
                 row.style.display = show ? '' : 'none';
                 if (show) visible++;
             });
+
+            console.log('Status counts in this table:', statusCounts);
+            console.log('Visible rows after filter:', visible);
+            console.log('------------------------------------');
 
             document.getElementById('reserveVisibleCount').textContent = visible;
             document.getElementById('reserveTotalCount').textContent = rows.length;
@@ -1657,7 +1563,6 @@
         applyStudentFilters();
         applyTeacherFilters();
         applyCatalogFilters();
-        applyReservedCatalogFilters();
         applyReserveFilters();
 
         window.toggleTableHeight = function(wrapperId) {

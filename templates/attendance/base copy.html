@@ -19,7 +19,7 @@
             --primary-light: #e6eff9;
             --secondary: #1e3a6e;
             --accent: #3b82f6;
-            --success: #3b82f6;
+            --success: #3b82f6;    /* changed from green to blue */
             --success-light: #dbeafe;
             --danger: #ef4444;
             --danger-light: #fee2e2;
@@ -41,6 +41,7 @@
             --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             --nav-height: 70px;
+            --sidebar-width: 320px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -151,7 +152,7 @@
         .drawer .drawer-user .user-info { font-weight: 500; color: #1a2a3a; }
         .drawer .drawer-user .logout-btn { padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 600; font-size: 0.85rem; background: var(--danger); color: #fff; border: none; transition: var(--transition); cursor: pointer; }
 
-        /* ----- App Layout – no sidebar padding ----- */
+        /* ----- App Layout ----- */
         .app-layout {
             display: flex;
             width: 100%;
@@ -161,9 +162,105 @@
             position: relative;
             overflow-x: hidden;
             margin-top: var(--nav-height);
-            padding-left: 0;  /* no sidebar */
+            padding-left: var(--sidebar-width);
             transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .app-layout.sidebar-collapsed {
+            padding-left: 0;
+        }
+
+        /* ----- Sidebar – dark silk gray with blue accent (unchanged) ----- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: linear-gradient(180deg, #d0d6dd 0%, #b8c0c9 100%);
+            border-right: 1px solid rgba(255,255,255,0.4);
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            position: fixed;
+            top: var(--nav-height);
+            left: 0;
+            height: calc(100vh - var(--nav-height));
+            overflow-y: auto;
+            z-index: 10;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease, opacity 0.2s ease, transform 0.3s ease;
+            opacity: 1;
+            will-change: transform;
+            box-shadow: inset -2px 0 10px rgba(0,0,0,0.06);
+        }
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .sidebar > * { position: relative; z-index: 1; }
+
+        .app-layout.sidebar-collapsed .sidebar {
+            width: 0px;
+            padding: 2rem 0px;
+            overflow: hidden;
+            border-right: 0 solid transparent;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(-100%);
+        }
+
+        .sidebar-heading {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #1a2a3a;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 0.75rem 0.75rem 0.25rem 0.75rem;
+            margin-top: 1.25rem;
+            white-space: nowrap;
+            opacity: 0.6;
+        }
+        .sidebar-heading:first-of-type { margin-top: 0; }
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: var(--radius-sm);
+            color: #1a2a3a;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            white-space: nowrap;
+            background: transparent;
+            border: none;
+        }
+        .sidebar-link i {
+            width: 1.25rem;
+            text-align: center;
+            color: #2a4a6a;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+        .sidebar-link:hover {
+            background: rgba(30, 58, 138, 0.15);
+            color: #0f2a4a;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.6), 0 2px 4px rgba(0,0,0,0.04);
+        }
+        .sidebar-link:hover i { color: #1e3a8a; }
+        .sidebar-link.active {
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+        }
+        .sidebar-link.active i { color: #fff; }
+
+        .sidebar-divider { border: none; border-top: 1px solid rgba(0,0,0,0.1); margin: 0.75rem 0; }
 
         /* ----- Main Content ----- */
         .main-content {
@@ -172,70 +269,6 @@
             min-width: 0;
             width: 100%;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* ----- Navigation Cards Grid ----- */
-        .nav-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1.25rem;
-            margin-bottom: 2.5rem;
-        }
-        .nav-card {
-            background: var(--surface);
-            border-radius: var(--radius);
-            padding: 1.5rem 1rem;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border);
-            transition: var(--transition);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            color: var(--text-main);
-            min-height: 130px;
-        }
-        .nav-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--secondary);
-            background: var(--surface-hover);
-        }
-        .nav-card i {
-            font-size: 2.2rem;
-            color: var(--secondary);
-            transition: var(--transition);
-        }
-        .nav-card:hover i {
-            color: var(--primary);
-            transform: scale(1.05);
-        }
-        .nav-card .card-label {
-            font-weight: 600;
-            font-size: 0.95rem;
-            line-height: 1.3;
-        }
-        .nav-card .card-sub {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-        /* section heading above cards */
-        .nav-section-title {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            margin: 1.5rem 0 0.75rem 0;
-            padding-bottom: 0.25rem;
-            border-bottom: 2px solid var(--border);
-            grid-column: 1 / -1;  /* span full width */
-        }
-        .nav-section-title:first-of-type {
-            margin-top: 0;
         }
 
         /* ----- Shared Components – all blue now ----- */
@@ -271,12 +304,13 @@
 
         /* ----- Responsive ----- */
         @media (max-width: 992px) {
+            --sidebar-width: 280px;
             .main-content { padding: 2rem 1.5rem; }
         }
         @media (max-width: 768px) {
             .app-layout { padding-left: 0 !important; }
+            .sidebar { display: none !important; }
             .main-content { padding: 1.5rem 1rem; }
-            .nav-cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
         }
     </style>
 </head>
@@ -322,6 +356,7 @@
                     <a href="{% url 'attendance:analytics_dashboard' %}"><i class="fas fa-chart-line"></i> Reports & Analytics</a>
                     <div class="drawer-heading">Scheduling</div>
                     <a href="{% url 'attendance:manage_timetable' %}"><i class="fas fa-calendar-alt"></i> Timetable</a>
+                    <!-- NEW: Library heading for Admin -->
                     <div class="drawer-heading">Library</div>
                     <a href="{% url 'attendance:librarian_dashboard' %}"><i class="fas fa-chart-pie"></i> Librarian Dashboard</a>
                     <a href="{% url 'attendance:manage_library' %}"><i class="fas fa-book-reader"></i> Library Management</a>
@@ -371,6 +406,7 @@
                     <a href="{% url 'attendance:issue_book' %}" class="{% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
                         <i class="fas fa-plus-circle"></i> Issue Book
                     </a>
+                    <!-- NEW: Upload Books link for Librarian -->
                     <a href="{% url 'attendance:upload_books' %}" class="{% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
                         <i class="fas fa-upload"></i> Upload Books
                     </a>
@@ -428,185 +464,161 @@
     <!-- ====== APP LAYOUT ====== -->
     <div class="app-layout" id="appLayout">
 
-        <!-- ====== MAIN CONTENT ====== -->
-        <main class="main-content">
-            {# ----- NAVIGATION CARDS (instead of sidebar) – role‑based ----- #}
-            {% if user.is_authenticated %}
-                <div class="nav-cards">
-                    {# --- ADMIN & STAFF --- #}
-                    {% if user.role == 'ADMIN' or user.is_staff %}
-                        <div class="nav-section-title">Administration</div>
-                        <a href="{% url 'attendance:admin_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
-                            <i class="fas fa-chart-pie"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
+        <!-- ====== DESKTOP SIDEBAR ====== -->
+        {% if user.is_authenticated %}
+        <aside class="sidebar" id="sidebarContainer">
 
-                        <div class="nav-section-title">Academic Records</div>
-                        <a href="{% url 'attendance:manage_departments' %}" class="nav-card">
-                            <i class="fas fa-building"></i>
-                            <span class="card-label">Departments</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_teachers' %}" class="nav-card">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span class="card-label">Teachers</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_students' %}" class="nav-card">
-                            <i class="fas fa-user-graduate"></i>
-                            <span class="card-label">Students</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_courses' %}" class="nav-card">
-                            <i class="fas fa-book"></i>
-                            <span class="card-label">Courses</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_course_units' %}" class="nav-card">
-                            <i class="fas fa-layer-group"></i>
-                            <span class="card-label">Course Units</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_streams' %}" class="nav-card">
-                            <i class="fas fa-stream"></i>
-                            <span class="card-label">Streams</span>
-                        </a>
-                        <a href="{% url 'attendance:analytics_dashboard' %}" class="nav-card">
-                            <i class="fas fa-chart-line"></i>
-                            <span class="card-label">Reports & Analytics</span>
-                        </a>
-
-                        <div class="nav-section-title">Scheduling</div>
-                        <a href="{% url 'attendance:manage_timetable' %}" class="nav-card">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span class="card-label">Timetable</span>
-                        </a>
-
-                        <div class="nav-section-title">Library</div>
-                        <a href="{% url 'attendance:librarian_dashboard' %}" class="nav-card">
-                            <i class="fas fa-chart-pie"></i>
-                            <span class="card-label">Librarian Dashboard</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_library' %}" class="nav-card">
-                            <i class="fas fa-book-reader"></i>
-                            <span class="card-label">Library Management</span>
-                        </a>
-                        <a href="{% url 'attendance:issue_book' %}" class="nav-card">
-                            <i class="fas fa-plus-circle"></i>
-                            <span class="card-label">Issue Book</span>
-                        </a>
-                        <a href="{% url 'attendance:upload_books' %}" class="nav-card">
-                            <i class="fas fa-upload"></i>
-                            <span class="card-label">Upload Books</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- TEACHER --- #}
-                    {% if user.role == 'TEACHER' %}
-                        <div class="nav-section-title">Teacher Console</div>
-                        <a href="{% url 'attendance:teacher_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
-                        <a href="{% url 'attendance:library_reader_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
-                            <i class="fas fa-book"></i>
-                            <span class="card-label">My Library</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- STUDENT --- #}
-                    {% if user.role == 'STUDENT' %}
-                        <div class="nav-section-title">Student Portal</div>
-                        <a href="{% url 'attendance:student_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
-                            <i class="fas fa-user-graduate"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
-                        <a href="{% url 'attendance:library_reader_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
-                            <i class="fas fa-book"></i>
-                            <span class="card-label">My Library</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- WARDEN --- #}
-                    {% if user.role == 'WARDEN' %}
-                        <div class="nav-section-title">Warden Console</div>
-                        <a href="{% url 'attendance:warden_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'warden_dashboard' %}active{% endif %}">
-                            <i class="fas fa-bed"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- LIBRARIAN --- #}
-                    {% if user.role == 'LIBRARIAN' %}
-                        <div class="nav-section-title">Librarian Console</div>
-                        <a href="{% url 'attendance:librarian_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'librarian_dashboard' %}active{% endif %}">
-                            <i class="fas fa-chart-pie"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
-                        <a href="{% url 'attendance:manage_library' %}" class="nav-card {% if request.resolver_match.url_name == 'manage_library' %}active{% endif %}">
-                            <i class="fas fa-book-reader"></i>
-                            <span class="card-label">Library Management</span>
-                        </a>
-                        <a href="{% url 'attendance:issue_book' %}" class="nav-card {% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
-                            <i class="fas fa-plus-circle"></i>
-                            <span class="card-label">Issue Book</span>
-                        </a>
-                        <a href="{% url 'attendance:upload_books' %}" class="nav-card {% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
-                            <i class="fas fa-upload"></i>
-                            <span class="card-label">Upload Books</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- ACCOUNTANT --- #}
-                    {% if user.role == 'ACCOUNTANT' %}
-                        <div class="nav-section-title">Accounting Console</div>
-                        <a href="{% url 'attendance:accountant_dashboard' %}" class="nav-card {% if request.resolver_match.url_name == 'accountant_dashboard' %}active{% endif %}">
-                            <i class="fas fa-chart-pie"></i>
-                            <span class="card-label">Dashboard</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- CAMPUS OPERATIONS --- #}
-                    {% if user.role in 'ADMIN,WARDEN,LIBRARIAN,TEACHER' or user.is_staff %}
-                        <div class="nav-section-title">Campus Operations</div>
-                        {% if user.role == 'ADMIN' or user.role == 'WARDEN' or user.is_staff %}
-                            <a href="{% url 'attendance:disciplinary_dashboard' %}" class="nav-card">
-                                <i class="fas fa-gavel"></i>
-                                <span class="card-label">Disciplinary Board</span>
-                            </a>
-                            <a href="{% url 'attendance:view_lodgings' %}" class="nav-card">
-                                <i class="fas fa-bed"></i>
-                                <span class="card-label">Lodgings & Hostels</span>
-                            </a>
-                        {% endif %}
-                    {% endif %}
-
-                    {# --- FINANCE & PAYROLL --- #}
-                    {% if user.role in 'ADMIN,ACCOUNTANT,STUDENT' or user.is_staff %}
-                        <div class="nav-section-title">Finance</div>
-                        {% if user.role in 'ADMIN,ACCOUNTANT,STUDENT' or user.is_staff %}
-                            <a href="{% url 'attendance:fees_dashboard' %}" class="nav-card">
-                                <i class="fas fa-wallet"></i>
-                                <span class="card-label">Bursary & Accounting</span>
-                            </a>
-                        {% endif %}
-                    {% endif %}
-
-                    {% if user.role in 'ADMIN,ACCOUNTANT,TEACHER,LIBRARIAN,WARDEN' or user.is_staff %}
-                        <a href="{% url 'attendance:staff_payments_dashboard' %}" class="nav-card">
-                            <i class="fas fa-credit-card"></i>
-                            <span class="card-label">Staff Payments</span>
-                        </a>
-                    {% endif %}
-
-                    {# --- SECURITY & SETTINGS (visible to all authenticated users) --- #}
-                    <div class="nav-section-title">Account</div>
-                    <a href="{% url 'attendance:change_password' %}" class="nav-card">
-                        <i class="fas fa-key"></i>
-                        <span class="card-label">Change Password</span>
-                    </a>
-                    <a href="{% url 'attendance:logout' %}" class="nav-card" style="border-color: var(--danger); color: var(--danger);">
-                        <i class="fas fa-sign-out-alt" style="color: var(--danger);"></i>
-                        <span class="card-label">Logout</span>
-                    </a>
-                </div>
+            {# --- ADMIN & STAFF --- #}
+            {% if user.role == 'ADMIN' or user.is_staff %}
+                <div class="sidebar-heading">Administration</div>
+                <a href="{% url 'attendance:admin_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+                <div class="sidebar-heading">Academic Records</div>
+                <a href="{% url 'attendance:manage_departments' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_departments' %}active{% endif %}">
+                    <i class="fas fa-building"></i> Departments
+                </a>
+                <a href="{% url 'attendance:manage_teachers' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_teachers' %}active{% endif %}">
+                    <i class="fas fa-chalkboard-teacher"></i> Teachers
+                </a>
+                <a href="{% url 'attendance:manage_students' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_students' %}active{% endif %}">
+                    <i class="fas fa-user-graduate"></i> Students
+                </a>
+                <a href="{% url 'attendance:manage_courses' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_courses' %}active{% endif %}">
+                    <i class="fas fa-book"></i> Courses
+                </a>
+                <a href="{% url 'attendance:manage_course_units' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_course_units' %}active{% endif %}">
+                    <i class="fas fa-layer-group"></i> Course Units
+                </a>
+                <a href="{% url 'attendance:manage_streams' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_streams' %}active{% endif %}">
+                    <i class="fas fa-stream"></i> Streams
+                </a>
+                <a href="{% url 'attendance:analytics_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'analytics_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-line"></i> Reports & Analytics
+                </a>
+                <span class="sidebar-divider"></span>
+                <div class="sidebar-heading">Scheduling</div>
+                <a href="{% url 'attendance:manage_timetable' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_timetable' %}active{% endif %}">
+                    <i class="fas fa-calendar-alt"></i> Timetable
+                </a>
+                <!-- NEW: Library heading for Admin -->
+                <span class="sidebar-divider"></span>
+                <div class="sidebar-heading">Library</div>
+                <a href="{% url 'attendance:librarian_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'librarian_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Librarian Dashboard
+                </a>
+                <a href="{% url 'attendance:manage_library' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_library' %}active{% endif %}">
+                    <i class="fas fa-book-reader"></i> Library Management
+                </a>
+                <a href="{% url 'attendance:issue_book' %}" class="sidebar-link {% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
+                    <i class="fas fa-plus-circle"></i> Issue Book
+                </a>
+                <a href="{% url 'attendance:upload_books' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
+                    <i class="fas fa-upload"></i> Upload Books
+                </a>
             {% endif %}
 
+            {# --- TEACHER --- #}
+            {% if user.role == 'TEACHER' %}
+                <div class="sidebar-heading">Teacher Console</div>
+                <a href="{% url 'attendance:teacher_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chalkboard-teacher"></i> Dashboard
+                </a>
+                <a href="{% url 'attendance:library_reader_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
+                    <i class="fas fa-book"></i> My Library
+                </a>
+            {% endif %}
+
+            {# --- STUDENT --- #}
+            {% if user.role == 'STUDENT' %}
+                <div class="sidebar-heading">Student Portal</div>
+                <a href="{% url 'attendance:student_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
+                    <i class="fas fa-user-graduate"></i> Dashboard
+                </a>
+                <a href="{% url 'attendance:library_reader_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'library_reader_dashboard' %}active{% endif %}">
+                    <i class="fas fa-book"></i> My Library
+                </a>
+            {% endif %}
+
+            {# --- WARDEN --- #}
+            {% if user.role == 'WARDEN' %}
+                <div class="sidebar-heading">Warden Console</div>
+                <a href="{% url 'attendance:warden_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'warden_dashboard' %}active{% endif %}">
+                    <i class="fas fa-bed"></i> Dashboard
+                </a>
+            {% endif %}
+
+            {# --- LIBRARIAN --- #}
+            {% if user.role == 'LIBRARIAN' %}
+                <div class="sidebar-heading">Librarian Console</div>
+                <a href="{% url 'attendance:librarian_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'librarian_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+                <a href="{% url 'attendance:manage_library' %}" class="sidebar-link {% if request.resolver_match.url_name == 'manage_library' %}active{% endif %}">
+                    <i class="fas fa-book-reader"></i> Library Management
+                </a>
+                <a href="{% url 'attendance:issue_book' %}" class="sidebar-link {% if request.resolver_match.url_name == 'issue_book' %}active{% endif %}">
+                    <i class="fas fa-plus-circle"></i> Issue Book
+                </a>
+                <!-- NEW: Upload Books link for Librarian -->
+                <a href="{% url 'attendance:upload_books' %}" class="sidebar-link {% if request.resolver_match.url_name == 'upload_books' %}active{% endif %}">
+                    <i class="fas fa-upload"></i> Upload Books
+                </a>
+            {% endif %}
+
+            {# --- ACCOUNTANT --- #}
+            {% if user.role == 'ACCOUNTANT' %}
+                <div class="sidebar-heading">Accounting Console</div>
+                <a href="{% url 'attendance:accountant_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'accountant_dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+            {% endif %}
+
+            {# --- CAMPUS OPERATIONS --- #}
+            {% if user.role in 'ADMIN,WARDEN,LIBRARIAN,TEACHER' or user.is_staff %}
+                <span class="sidebar-divider"></span>
+                <div class="sidebar-heading">Campus Operations</div>
+                {% if user.role == 'ADMIN' or user.role == 'WARDEN' or user.is_staff %}
+                    <a href="{% url 'attendance:disciplinary_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'disciplinary_dashboard' %}active{% endif %}">
+                        <i class="fas fa-gavel"></i> Disciplinary Board
+                    </a>
+                    <a href="{% url 'attendance:view_lodgings' %}" class="sidebar-link {% if request.resolver_match.url_name == 'view_lodgings' %}active{% endif %}">
+                        <i class="fas fa-bed"></i> Lodgings & Hostels
+                    </a>
+                {% endif %}
+            {% endif %}
+
+            {# --- FINANCE & PAYROLL --- #}
+            {% if user.role in 'ADMIN,ACCOUNTANT,STUDENT' or user.is_staff %}
+                <span class="sidebar-divider"></span>
+                <div class="sidebar-heading">Finance</div>
+                {% if user.role in 'ADMIN,ACCOUNTANT,STUDENT' or user.is_staff %}
+                    <a href="{% url 'attendance:fees_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'fees_dashboard' %}active{% endif %}">
+                        <i class="fas fa-wallet"></i> Bursary & Accounting
+                    </a>
+                {% endif %}
+            {% endif %}
+
+            {% if user.role in 'ADMIN,ACCOUNTANT,TEACHER,LIBRARIAN,WARDEN' or user.is_staff %}
+                <a href="{% url 'attendance:staff_payments_dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'staff_payments_dashboard' %}active{% endif %}">
+                    <i class="fas fa-credit-card"></i> Staff Payments
+                </a>
+            {% endif %}
+
+            {# --- SECURITY & SETTINGS --- #}
+            <span class="sidebar-divider"></span>
+            <div class="sidebar-heading">Account</div>
+            <a href="{% url 'attendance:change_password' %}" class="sidebar-link {% if request.resolver_match.url_name == 'change_password' %}active{% endif %}">
+                <i class="fas fa-key"></i> Change Password
+            </a>
+            <a href="{% url 'attendance:logout' %}" class="sidebar-link" style="color:var(--danger);">
+                <i class="fas fa-sign-out-alt" style="color:var(--danger);"></i> Logout
+            </a>
+        </aside>
+        {% endif %}
+
+        <!-- ====== MAIN CONTENT ====== -->
+        <main class="main-content">
             {# ----- MESSAGES (from partial) ----- #}
             {% include 'attendance/_messages.html' %}
 
@@ -632,16 +644,32 @@
     <script>
         (function() {
             const universalMenuBtn = document.getElementById('universalMenuBtn');
+            const appLayout = document.getElementById('appLayout');
             const drawer = document.getElementById('drawer');
             const overlay = document.getElementById('drawerOverlay');
             const closeBtn = document.getElementById('drawerCloseBtn');
 
-            // Open drawer on mobile
+            if (appLayout) {
+                const sidebarState = localStorage.getItem('sidebar_collapsed');
+                if (sidebarState === 'true') {
+                    appLayout.classList.add('sidebar-collapsed');
+                }
+            }
+
             if (universalMenuBtn) {
                 universalMenuBtn.addEventListener('click', function() {
-                    drawer.classList.add('open');
-                    overlay.classList.add('active');
-                    document.body.style.overflow = 'hidden';
+                    const isDesktop = window.innerWidth > 768;
+                    const hasSidebar = document.getElementById('sidebarContainer') !== null;
+
+                    if (isDesktop && hasSidebar) {
+                        appLayout.classList.toggle('sidebar-collapsed');
+                        const isCollapsed = appLayout.classList.contains('sidebar-collapsed');
+                        localStorage.setItem('sidebar_collapsed', isCollapsed);
+                    } else {
+                        drawer.classList.add('open');
+                        overlay.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    }
                 });
             }
 
