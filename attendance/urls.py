@@ -9,6 +9,7 @@ app_name = 'attendance'
 urlpatterns = [
     # Baseline Root Landing Page Routing
     path('', views_users.home, name='home'),
+    path('my-apps/', views_users.my_apps, name='my_apps'),
     
     # Auth routing infrastructure
     path('login/', views.custom_login_view, name='login'),

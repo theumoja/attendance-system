@@ -28,8 +28,21 @@ def home(request):
     """
     Redirects the user to their appropriate dashboard based on their role.
     """
-    return redirect('attendance:my_apps')
+    if request.user.role == User.IS_ADMIN:
+        return redirect('attendance:admin_dashboard')
+    elif request.user.role == User.IS_TEACHER:
+        return redirect('attendance:teacher_dashboard')
+    elif request.user.role == User.IS_WARDEN:
+        return redirect('attendance:warden_dashboard')
     
+    elif request.user.role == User.IS_ACCOUNTANT:
+        return redirect('attendance:accountant_dashboard')
+
+    elif request.user.role == User.IS_LIBRARIAN:
+        return redirect('attendance:librarian_dashboard')
+        
+    elif request.user.role == User.IS_STUDENT:
+        return redirect('attendance:student_dashboard')
 
 from django.db import transaction  # <-- Add this missing import
 import csv
